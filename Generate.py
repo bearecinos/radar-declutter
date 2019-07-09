@@ -41,7 +41,7 @@ def Setup():
     _raster = arcpy.Raster("default.gdb/srtm30_dem_utm45n_crop")
     _slopeRaster = arcpy.Raster("default.gdb/Slope_srtm")
     _aspectRaster = arcpy.Raster("default.gdb/Aspect_srtm")
-    _onesRaster = arcpy.Raster("default.gdb/srtm30_dem_utm45n_crop_ones")
+    # No longer needed _onesRaster = arcpy.Raster("default.gdb/srtm30_dem_utm45n_crop_ones")
     
     arcpy.env.snapRaster = _raster
     os.chdir("C:\\Users\\dboyle\\OneDrive\\generation") # sometimes changes
@@ -115,15 +115,17 @@ def _makeIncidence():
 def _makeDistance():
     """Generates the 3D distance from the radar to each point of the raster."""
     global _trueDist
-    vectorized = np.vectorize(getDistance)
-    _trueDist = vectorized(_vis,_distances,_heightmap)
+    _trueDist = np.full_like(_vis,-1,"float32") # use float64 instead??
+    _trueDist[_vis==1] = (_distances[_vis==1]**2+(_heightmap[_vis==1]-_elevation)**2)**0.5
+    #vectorized = np.vectorize(getDistance)
+    #_trueDist = vectorized(_vis,_distances,_heightmap)
     trued = arcpy.NumPyArrayToRaster(_trueDist,arcpy.Point(_cropLeft,_cropLow),30,30,-1)
     trued.save("distance")
 
 def _makeDist2D():
     distances = np.full_like(_vis,-1,"float32")
     for x,y in np.ndindex(_cropWidth,_cropHeight):
-        if _vis[y][x] != -2:  # CHANGE LATER
+        if _vis[y][x] != -1:  
             distances[y][x] = ((_pointx - _cropLeft - _CellSize*x)**2 + (_pointy - _cropLow - _CellSize*y)**2)**0.5
     return distances
 

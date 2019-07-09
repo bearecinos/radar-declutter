@@ -29,7 +29,9 @@ def generateAll():
     ys = np.linspace(_startY,_endY,_steps)
     with open("tmp","w") as f:
         f.write(str(_startX)+","+str(_startY)+","+str(_endX)+","+str(_endY)+","+str(_steps)+","+_filename+"\n")
+    print "Performing arcpy setup..."
     Generate.Setup()
+    print "Complete"
     for i in progressbar(range(_steps)):
         Generate.setPoint(xs[i],ys[i],_filename+"\\point"+str(i))
         Generate.generateMaps()
