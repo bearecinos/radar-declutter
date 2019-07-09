@@ -80,13 +80,14 @@ def _msin(x):
 
 # generates map of incidence angle for all visible surfaces
 def _makeIncidence():
-    """Generates the incidence angle for each point of the raster."""
+    """Generates the incidence angle for each point of the raster. Final array is in radians."""
     incidence = np.full_like(_vis,-1.0,"float64")
     m = (_vis==1)
     cosTheta = (_elevation-_heightmap[m])/_trueDist[m]
     sinTheta = _distances[m]/_trueDist[m]
     cosAng = cosTheta * np.cos(math.pi/180.0*_slope[m]) - sinTheta * np.sin(np.pi/180.0*_slope[m]) * np.cos(math.pi/180.0*(_directions[m]-_aspect[m]))
-    incidence[m] = 180.0/math.pi * np.arccos(cosAng) # if errors - caused by FP errors in cosAng
+    # RADIANS, NOT DEGREES
+    incidence[m] = np.arccos(cosAng) # if errors - caused by FP errors in cosAng
 
     inc = arcpy.NumPyArrayToRaster(incidence,arcpy.Point(_cropLeft,_cropLow),30,30,-1)
     inc.save("incidence")
@@ -114,8 +115,9 @@ def _makeAntenna():
     phi = np.full_like(_vis,-1,"float32")
 
     m = (_vis==1)
-    theta[m] = 180.0/math.pi * np.arcsin((_heightmap[m]-_elevation)/_trueDist[m])
-    phi[m] = (_directions[m]-_antennaDir)%360
+    # Both use radians
+    theta[m] = np.arcsin((_heightmap[m]-_elevation)/_trueDist[m])
+    phi[m] = ((_directions[m]-_antennaDir)%360)*math.pi/180.0
     
     theta = arcpy.NumPyArrayToRaster(theta,arcpy.Point(_cropLeft,_cropLow),30,30,-1)
     theta.save("antennaTheta")

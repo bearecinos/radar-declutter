@@ -15,7 +15,7 @@ _MAXTIME = 2*_MAXDIST/3e8
 
 _steps = int(_MAXTIME/_GRANULARITY)
 
-def _time(distance,angle):
+def _time(distance):
     """Get the time for a wave to return to the radar after reflecting off a
     point 'distance' away."""
     return distance*2.0/3e8
@@ -25,7 +25,7 @@ def _time(distance,angle):
 # sigma nought proportional to BRDF * cos(theta)^2
 
 def lambertian(angle):
-    return math.cos(math.radians(angle))
+    return math.cos(angle)
 
 def lambSpec(angle): # specular but adding fact that area seen is like cos theta
     return lambertian(angle)*raySpecular(angle)
@@ -37,10 +37,10 @@ def Henyey_Green(g):
     return (1-g*g)*math.pow(1+g,-3.0)
 
 def Minnart(theta,k): 
-    return math.pow(math.cos(math.radians(theta)),2*k-2)
+    return math.pow(math.cos(theta),2*k-2)
 
 def raySpecular(theta,n=1):
-    return math.pow(max(0,math.cos(math.radians(theta)*2)),n)
+    return math.pow(max(0,math.cos(theta*2)),n)
 
 _wavelength = 50
 _freq = 3e8/_wavelength
@@ -95,7 +95,7 @@ def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
     # use proper mask?
     for x,y in np.ndindex(width,height):
         if visible[y][x] != -1 and distance[y][x] < _MAXDIST:
-            t = _time(distance[y][x],angle[y][x])
+            t = _time(distance[y][x])
             intensity = intensityModel(angle[y][x])
             sample[int(t/_GRANULARITY)] += intensity
     low = int(math.floor(-wave.lim/_GRANULARITY))
