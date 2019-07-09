@@ -33,7 +33,7 @@ def Henyey_Green(g):
 def Minnart(theta,k): 
     return np.power(np.cos(theta),2*k-2)
 def raySpecular(theta,n=1):
-    return np.power(np.maximum(0,np.cos(theta*2)),n)
+    return np.power(np.maximum(0,np.cos(theta*2)),n) 
 
 _wavelength = 50
 _freq = 3e8/_wavelength

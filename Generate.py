@@ -96,10 +96,10 @@ def _makeIncidence():
     cosTheta = (_elevation-_heightmap[m])/_trueDist[m]
     sinTheta = _distances[m]/_trueDist[m]
     cosAng = cosTheta * np.cos(math.pi/180.0*_slope[m]) - sinTheta * np.sin(np.pi/180.0*_slope[m]) * np.cos(math.pi/180.0*(_directions[m]-_aspect[m]))
-    # RADIANS, NOT DEGREES
+    
     incidence[m] = np.arccos(cosAng) # if errors - caused by FP errors in cosAng
-
-    inc = arcpy.NumPyArrayToRaster(incidence,arcpy.Point(_cropLeft,_cropLow),30,30,-1)
+    # wrap in arcpy.sa.Float(...) to avoid being converted to integers
+    inc = arcpy.sa.Float(arcpy.NumPyArrayToRaster(incidence,arcpy.Point(_cropLeft,_cropLow),30,30,-1.0))
     inc.save("incidence")
 
 # generates map of 3d distance to visible surfaces from 2d distance + height difference
