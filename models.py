@@ -1,0 +1,224 @@
+import math
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+from os import listdir
+import arcpy
+import progressbar
+from scipy import signal
+
+_MAXDIST = 30*105.0
+_GRANULARITY = 1e-8 # 10ns
+_SPACE_GRANULARITY = _GRANULARITY*3e8
+_MAXTIME = 2*_MAXDIST/3e8
+
+_steps = int(_MAXTIME/_GRANULARITY)
+
+def _time(distance,angle):
+    """Get the time for a wave to return to the radar after reflecting off a
+    point 'distance' away."""
+    return distance*2.0/3e8
+
+# confirm which measure is observed intensity:
+# sigma nought or sigma nought cos (theta) or same for BRDF - R cos(theta)
+# sigma nought proportional to BRDF * cos(theta)^2
+
+def lambertian(angle):
+    return math.cos(math.radians(angle))
+
+def lambSpec(angle): # specular but adding fact that area seen is like cos theta
+    return lambertian(angle)*raySpecular(angle)
+
+def Henyey_Green(g):
+    # backscatter so theta = pi, cos(pi) = -1
+    # 1 + g^2 + 2*g = (1+g)^2
+    # just constant per surface as incidence angle irrelevant
+    return (1-g*g)*math.pow(1+g,-3.0)
+
+def Minnart(theta,k): 
+    return math.pow(math.cos(math.radians(theta)),2*k-2)
+
+def raySpecular(theta,n=1):
+    return math.pow(max(0,math.cos(math.radians(theta)*2)),n)
+
+_wavelength = 50
+_freq = 3e8/_wavelength
+
+def bandpass_filter(data, lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = signal.butter(order, [low, high], btype='band')
+    return signal.lfilter(b, a, data)
+
+class MidNorm(colors.Normalize):
+    """ Normalize colorbar so that diverging bars work from chosen value"""
+    def __init__(self,midpoint,vmin=None,vmax=None,clip=False):
+        self.midpoint = midpoint
+        colors.Normalize.__init__(self,vmin,vmax,clip)
+    def __call__(self,value,clip=None):
+        x,y = [self.vmin,self.midpoint,self.vmax],[0,0.5,1]
+        return np.ma.masked_array(np.interp(value,x,y),np.isnan(value))
+
+class Ricker:
+    lim = 1.0/_freq
+    def amplitude(self,t):
+        return (1-2*np.pi**2*_freq**2*t**2)*np.exp(-np.pi**2*_freq**2*t**2)
+class GaussianDot:
+    lim = 2.0/(3.0*_freq)
+    def amplitude(self,t):
+        return -np.exp(0.5)*2*np.pi*_freq*t*np.exp(-2*np.pi**2*_freq**2*t**2)
+class OtherGaussian:
+    lim = 2.0/(3.0*_freq)
+    def amplitude(self,t):
+        return (self.integral(t+_GRANULARITY/2.0)-self.integral(t-_GRANULARITY/2.0))/_GRANULARITY
+    def integral(self,t):
+        return np.exp(0.5)/(2.0*np.pi*_freq)*np.exp(-2*np.pi**2*_freq**2*t**2)
+class NoWave:
+    lim = _GRANULARITY/2.0
+    def amplitude(self,t):
+        return 1.0
+class IDLWave:
+    lim = np.inf
+    def __init__(self,c=50.0):
+        self.c = c
+    def amplitude(self,t):
+        return np.exp(-t**2/c)
+
+def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
+    visible = arcpy.RasterToNumPyArray(filename+"\\visible",nodata_to_value = -1)
+    distance = arcpy.RasterToNumPyArray(filename+"\\distance",nodata_to_value = -1).astype(float)
+    angle = arcpy.RasterToNumPyArray(filename+"\\incidence",nodata_to_value = -1).astype(float)
+    height,width = visible.shape[0], visible.shape[1]
+    sample = np.full((_steps),0,"float")
+    # use proper mask?
+    for x,y in np.ndindex(width,height):
+        if visible[y][x] != -1 and distance[y][x] < _MAXDIST:
+            t = _time(distance[y][x],angle[y][x])
+            intensity = intensityModel(angle[y][x])
+            sample[int(t/_GRANULARITY)] += intensity
+    low = int(math.floor(-wave.lim/_GRANULARITY))
+    high = 1-low
+
+    w = np.full((high-low),0,"float")
+    for j in range(high-low):
+        w[j] = wave.amplitude((j+low)*_GRANULARITY)
+    return np.convolve(sample,w,"same")
+
+#models = [lambertian,lambda x : Minnart(x,2), raySpecular, lambda x : raySpecular(x,2)]
+#titles = ["diffuse", "Minnart k=2", "Specular n=1", "Specular n=2"]
+models = [raySpecular]
+titles = ["Specular n=1"]
+#models = [lambda x : Minnart(x,3)]
+#titles = ["IDL method"]
+def compare(name,adjusted=False,wave=GaussianDot()):
+    returnData = []
+    print "preparing"
+    plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
+    plt.figure(figsize=(15,10))
+    arcpy.env.workspace = "C:\\Users\\dboyle\\OneDrive\\generation\\"+name
+    files = listdir(name)
+    heights = []
+    
+    print "Environment setup"
+    with open(name+"\\"+files[0]+"\\x_y_z_elevation","r") as f:
+        meta = f.read().split(",")
+        x0 = float(meta[0])
+        y0 = float(meta[1])
+    cells = int(np.ceil(np.sqrt(len(models))))*110
+    for j in range(len(models)):
+        plt.subplot(cells+j+1)
+        out = np.full((len(files),_steps),0)
+        for i in progressbar.progressbar(range(len(files))):
+            filename = files[i]
+            with open(name+"\\"+filename+"\\x_y_z_elevation","r") as f:
+                meta = f.read().split(",")
+                heights.append(float(meta[2]))
+            out[i] = processSlice(filename,models[j],wave) 
+
+        if adjusted:
+            highest = max(heights)
+            lowest = min(heights)
+            draw = np.full((len(files),_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
+            for i in range(len(files)):
+                start = int((highest-heights[i])/_SPACE_GRANULARITY)
+                draw[i][start:start+_steps] = out[i]
+        else:
+            draw = out
+            highest, lowest = 0, 0
+        ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
+        plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
+
+        draw = np.swapaxes(draw,0,1)
+        returnData.append(draw)
+        plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(0), cmap="Greys") 
+        # normalise data
+        #draw = (draw-np.amin(draw))/(np.amax(draw)-np.amin(draw))
+        #plt.imshow(draw,aspect="auto")
+        #plt.contourf(np.arange(len(files)), ys, draw, 100, cmap="Greys",norm=colors.PowerNorm(1.5))
+        #plt.pcolormesh(np.arange(len(files)), ys, draw,cmap="Greys") # alternative cmap is "RdBu_r" where +ve = red
+        plt.title(titles[j])
+        plt.colorbar()
+    plt.show()
+    return returnData
+
+def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
+    plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
+    plt.figure(figsize=(15,10))
+    arcpy.env.workspace = "C:\\Users\\dboyle\\OneDrive\\generation\\"+filename
+    ys = processSlice("",intensityModel=raySpecular,wave=wave)
+    xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
+    plt.plot(xs,ys,color="black")
+    plt.fill_between(xs,ys,0,where=(ys>0),color="black")
+    plt.show()
+
+def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()):
+    plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
+    plt.figure(figsize=(20,10))
+    arcpy.env.workspace = "C:\\Users\\dboyle\\OneDrive\\generation\\"+name
+    files = listdir(name)
+    heights = []
+    
+    print "Environment setup"
+    with open(name+"\\"+files[0]+"\\x_y_z_elevation","r") as f:
+        meta = f.read().split(",")
+        x0 = float(meta[0])
+        y0 = float(meta[1])
+    cells = int(np.ceil(np.sqrt(len(files))))*110
+    
+    out = np.full((len(files),_steps),0)
+    for i in progressbar.progressbar(range(len(files))):
+        filename = files[i]
+        with open(name+"\\"+filename+"\\x_y_z_elevation","r") as f:
+            meta = f.read().split(",")
+            heights.append(float(meta[2]))
+        out[i] = processSlice(filename,intensityModel,wave)  
+
+    if adjusted:
+        highest = max(heights)
+        lowest = min(heights)
+        draw = np.full((len(files),_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
+        for i in range(len(files)):
+            start = int((highest-heights[i])/_SPACE_GRANULARITY)
+            draw[i][start:start+_steps] = out[i]
+    else:
+        draw = out
+        highest, lowest = 0, 0
+    ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
+
+    m = np.amax(abs(draw))
+    for i in range(len(files)):
+        plt.plot(draw[i]+m*i,ys,"k-")
+        plt.fill_betweenx(ys,m*i,m*i+draw[i],where=(draw[i]>0),color='k')
+    plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
+    plt.xlim(-m,m*len(files))
+    plt.gca().axes.get_xaxis().set_visible(False)
+    print np.amax(abs(draw))
+    plt.show()
+    
+def showWave(wave=GaussianDot()):
+    x = np.linspace(-1.5*wave.lim,1.5*wave.lim,100)
+    f = np.vectorize(wave.amplitude)
+    plt.plot(x,f(x))
+    plt.show()
