@@ -20,27 +20,20 @@ def _time(distance):
     point 'distance' away."""
     return distance*2.0/3e8
 
-# confirm which measure is observed intensity:
-# sigma nought or sigma nought cos (theta) or same for BRDF - R cos(theta)
-# sigma nought proportional to BRDF * cos(theta)^2
-
+# surface models
 def lambertian(angle):
-    return math.cos(angle)
-
+    return np.cos(angle)
 def lambSpec(angle): # specular but adding fact that area seen is like cos theta
     return lambertian(angle)*raySpecular(angle)
-
 def Henyey_Green(g):
     # backscatter so theta = pi, cos(pi) = -1
     # 1 + g^2 + 2*g = (1+g)^2
     # just constant per surface as incidence angle irrelevant
-    return (1-g*g)*math.pow(1+g,-3.0)
-
+    return (1-g*g)*np.power(1+g,-3.0)
 def Minnart(theta,k): 
-    return math.pow(math.cos(theta),2*k-2)
-
+    return np.power(np.cos(theta),2*k-2)
 def raySpecular(theta,n=1):
-    return math.pow(max(0,math.cos(theta*2)),n)
+    return np.power(np.maximum(0,np.cos(theta*2)),n)
 
 _wavelength = 50
 _freq = 3e8/_wavelength
@@ -61,6 +54,7 @@ class MidNorm(colors.Normalize):
         x,y = [self.vmin,self.midpoint,self.vmax],[0,0.5,1]
         return np.ma.masked_array(np.interp(value,x,y),np.isnan(value))
 
+# wave models
 class Ricker:
     lim = 1.0/_freq
     def amplitude(self,t):
@@ -69,22 +63,16 @@ class GaussianDot:
     lim = 2.0/(3.0*_freq)
     def amplitude(self,t):
         return -np.exp(0.5)*2*np.pi*_freq*t*np.exp(-2*np.pi**2*_freq**2*t**2)
-class OtherGaussian:
-    lim = 2.0/(3.0*_freq)
-    def amplitude(self,t):
-        return (self.integral(t+_GRANULARITY/2.0)-self.integral(t-_GRANULARITY/2.0))/_GRANULARITY
-    def integral(self,t):
-        return np.exp(0.5)/(2.0*np.pi*_freq)*np.exp(-2*np.pi**2*_freq**2*t**2)
-class NoWave:
+class Constant:
     lim = _GRANULARITY/2.0
     def amplitude(self,t):
         return 1.0
 class IDLWave:
-    lim = np.inf
-    def __init__(self,c=50.0):
-        self.c = c
+    lim = _MAXTIME
+    def __init__(self,c=5.0):
+        self.c = float(c)
     def amplitude(self,t):
-        return np.exp(-t**2/c)
+        return np.exp(-t**2/self.c)
 
 def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
     visible = arcpy.RasterToNumPyArray(filename+"\\visible",nodata_to_value = -1)
@@ -93,14 +81,13 @@ def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
     height,width = visible.shape[0], visible.shape[1]
     sample = np.full((_steps),0,"float")
     # use proper mask?
-    for x,y in np.ndindex(width,height):
-        if visible[y][x] != -1 and distance[y][x] < _MAXDIST:
-            t = _time(distance[y][x])
-            intensity = intensityModel(angle[y][x])
-            sample[int(t/_GRANULARITY)] += intensity
+    m = (visible == 1) & (distance < _MAXDIST)
+    t = (_time(distance[m])/_GRANULARITY).astype(int)
+    intensity = intensityModel(angle[m])
+    for i in range(_steps):
+        sample[i] = np.sum(intensity[t==i])
     low = int(math.floor(-wave.lim/_GRANULARITY))
     high = 1-low
-
     w = np.full((high-low),0,"float")
     for j in range(high-low):
         w[j] = wave.amplitude((j+low)*_GRANULARITY)

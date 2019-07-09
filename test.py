@@ -13,11 +13,21 @@ _filename = "simple"
 # lateral: (472971,3083950) to (473882, 3084313)
 
 def setDetailed():
+    """Sets the pathname to 'detailed' and number of samples to 50."""
     global _filename, _steps
     _filename = "detailed"
     _steps = 50
 
 def setPath(startX,startY,endX,endY,steps,name):
+    """Select the endpoints of a straight path, the resolution of the path, and its name.
+    No option to set elevation, 100m above ground at every point.
+    Parameters:
+    startX float : initial x-coordinate.
+    startY float : initial y-coordinate.
+    endX float : final x-coordinate.
+    endY float : final y-coordiante.
+    steps int : number of points to sample.
+    name string : name of folder to store data in."""    
     global _startX,_startY,_endX,_endY,_steps, _filename
     _startX, _startY = startX, startY
     _endX, _endY = endX, endY
@@ -25,6 +35,7 @@ def setPath(startX,startY,endX,endY,steps,name):
     _filename = name
 
 def generateAll():
+    """Generates data for all equally spaced points along the specified straight path."""
     xs = np.linspace(_startX,_endX,_steps)
     ys = np.linspace(_startY,_endY,_steps)
     with open("tmp","w") as f:
@@ -41,6 +52,8 @@ def generateAll():
     Generate.finish()
 
 def resume():
+    """Read the tmp file created when points are generated and use this to resume a partially complete path.
+    Note : This does not check the tmp file first exists so will fail if the most recent path completed successfully."""
     with open("tmp","r") as f:
         lines = f.read().split("\n")
     done = len(lines)-2

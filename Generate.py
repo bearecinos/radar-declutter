@@ -8,8 +8,16 @@ _pointx, _pointy = 469900.0, 3095000.0
 _above_ground, _isOffset = 100.0, True
 _PATH, _antennaDir = "point1", None
 
-def setPoint(x,y,name,above=100,isOffset=True, antennaDir=None):
-    """Enter the coordinates of the point and filename. Optionally set the height above the ground."""
+def setPoint(x,y,name,above=100.0,isOffset=True, antennaDir=None):
+    """ Preparation for generating the data for a particular point.
+    Parameters:
+    x float : x-coordinate of point.
+    y float : y-coordiante of point.
+    name string : name of folder to save data in.
+    above float (optional) : Either actual altitude of point or elevation above the ground. Default = 100.
+    isOffset boolean (optional) : Whether the given 'above' value is an offset from the ground or not. Default = True.
+    antennaDir float (optional) : Bearing radar is facing in degrees. By default, not used."""
+    #"""Enter the coordinates of the point and filename. Optionally set the height above the ground."""
     global _pointx,_pointy,_above_ground,_PATH, _isOffset
     _pointx = x
     _pointy = y
@@ -43,7 +51,9 @@ def Setup():
     _SetupRun = True
 
 def _crop(name="visibletemp"):
-    """Calculates the corner of the smaller raster to use to generate data."""
+    """Calculates the corner of the smaller raster to use to generate data.
+    Parameters:
+    name string (optional) : Name of raster to use to calculate the new corner from. Choice shouldn't have any effect on results."""
     global _cropLeft, _cropLow
     rasterData = arcpy.Raster(name).extent
     low = rasterData.YMin
@@ -56,7 +66,7 @@ def _crop(name="visibletemp"):
 
 # creates 'viewshed' for radar location
 def _createPoint():
-    """Adds a POINT Featureclass and adds a point at the selected coordinates."""
+    """Adds a POINT Featureclass and adds a point at the specified coordinates."""
     arcpy.CreateFeatureclass_management("\\","viewshed","POINT")
 
     cur = arcpy.InsertCursor("viewshed.shp") # allow write access
@@ -67,7 +77,7 @@ def _createPoint():
 
 # creates npArray of compass direction to all visible points
 def _getDirections():
-    """Calculates the bearing from the radar to each point on the raster."""
+    """Calculates the bearing from the radar to each visible point on the raster."""
     global _directions
     _directions = np.full((_cropHeight,_cropWidth),-1,"float32")
     y,x = np.indices([_cropHeight,_cropWidth])
@@ -80,7 +90,7 @@ def _msin(x):
 
 # generates map of incidence angle for all visible surfaces
 def _makeIncidence():
-    """Generates the incidence angle for each point of the raster. Final array is in radians."""
+    """Generates the incidence angle from the radar for each point of the raster. Final array is in radians."""
     incidence = np.full_like(_vis,-1.0,"float64")
     m = (_vis==1)
     cosTheta = (_elevation-_heightmap[m])/_trueDist[m]
@@ -102,6 +112,7 @@ def _makeDistance():
     trued.save("distance")
 
 def _makeDist2D():
+    """Calculates the xy distance to each visible point on the raster, ignoring differences in height."""
     distances = np.full_like(_vis,-1,"float32")
 
     y,x = np.indices([_cropHeight,_cropWidth])
@@ -110,7 +121,7 @@ def _makeDist2D():
     return distances
 
 def _makeAntenna():
-    """Find theta from horizon and phi from antenna direction (as bearing)"""
+    """Generate theta, the pitch, and phi, bearing relative to antenna direction, of each point on raster. Result is in radians."""
     theta = np.full_like(_vis,-1,"float32")
     phi = np.full_like(_vis,-1,"float32")
 
@@ -125,8 +136,8 @@ def _makeAntenna():
     phi.save("antennaPhi")
 
 def generateMaps():
-    """Produces the visibility, distance and incidence rasters for the set point."""
-    global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground, t1, t2, t3, t4, current
+    """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data."""
+    global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground
     if not _SetupRun:
         Setup()
 
@@ -185,6 +196,6 @@ def generateMaps():
     arcpy.Delete_management("visibletemp")
 
 def finish():
-    """Check the chosen extensions back in (done by default when program ends."""
+    """Check the arcpy extensions used back in (done by default when program ends)."""
     arcpy.CheckInExtension("3D")
     arcpy.CheckInExtension("Spatial")
