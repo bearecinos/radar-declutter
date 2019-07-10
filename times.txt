@@ -1,0 +1,25 @@
+Standard:
+	89 from bar, 89.7 start, 66.2 from segment
+
+New with slow viewshed: 
+	380 from bar, 380.1 start, 378.1 segment
+
+with fast viewshed:
+	11 from bar, 11.5 start, 9.6 segment
+
+coordinates : (105.07788999999563, 105.77883999999612)
+grid file : grid.npy
+x = 107, y = 7
+in regular, [y][x] is 1. in fast, [y][x] is -1
+index within inRange is 87
+
+
+Useful: mask = np.full_like(grid,0,int)
+mask[y][x] = 1
+np.where(mask[inRange])
+view[np.where(inRange)[0][87]] = 1
+Only issue when called on whole array
+
+singular: ax,ay. filtered: fx,fy
+
+NOTE: POSSIBLY NEED TO REVERSE y IN SOME PLACES??

@@ -1,4 +1,4 @@
-import Generate
+import Generate2 as Generate # CHANGE THIS
 from os import remove, path
 from shutil import rmtree
 import numpy as np

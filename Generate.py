@@ -4,9 +4,14 @@ import numpy as np
 import os
 from time import clock
 
+start = 0
+segment = 0
+
 _pointx, _pointy = 469900.0, 3095000.0
 _above_ground, _isOffset = 100.0, True
-_PATH, _antennaDir = "point1", None
+_PATH, _antennaDir = "point2", None
+
+_save = {"visible":None,"distance":None,"incidence":None,"antennaTheta":None,"antennaPhi":None}
 
 def setPoint(x,y,name,above=100.0,isOffset=True, antennaDir=None):
     """ Preparation for generating the data for a particular point.
@@ -58,7 +63,7 @@ def _crop(name="visibletemp"):
     rasterData = arcpy.Raster(name).extent
     low = rasterData.YMin
     left = rasterData.XMin
-
+    # rounds down the corner
     pointCoords = [int((_pointx-left)/30),int((_pointy-low)/30)]
 
     _cropLeft = left + (pointCoords[0]-_cropWidth/2)*30
@@ -90,6 +95,7 @@ def _msin(x):
 
 # generates map of incidence angle for all visible surfaces
 def _makeIncidence():
+    global _save
     """Generates the incidence angle from the radar for each point of the raster. Final array is in radians."""
     incidence = np.full_like(_vis,-1.0,"float64")
     m = (_vis==1)
@@ -98,18 +104,18 @@ def _makeIncidence():
     cosAng = cosTheta * np.cos(math.pi/180.0*_slope[m]) - sinTheta * np.sin(np.pi/180.0*_slope[m]) * np.cos(math.pi/180.0*(_directions[m]-_aspect[m]))
     
     incidence[m] = np.arccos(cosAng) # if errors - caused by FP errors in cosAng
-    # wrap in arcpy.sa.Float(...) to avoid being converted to integers
-    inc = arcpy.sa.Float(arcpy.NumPyArrayToRaster(incidence,arcpy.Point(_cropLeft,_cropLow),30,30,-1.0))
-    inc.save("incidence")
+    _save["incidence"] = incidence
+
 
 # generates map of 3d distance to visible surfaces from 2d distance + height difference
 def _makeDistance():
     """Generates the 3D distance from the radar to each point of the raster."""
-    global _trueDist
+    global _trueDist, _save
     _trueDist = np.full_like(_vis,-1,"float32") # use float64 instead??
     _trueDist[_vis==1] = (_distances[_vis==1]**2+(_heightmap[_vis==1]-_elevation)**2)**0.5
-    trued = arcpy.NumPyArrayToRaster(_trueDist,arcpy.Point(_cropLeft,_cropLow),30,30,-1)
-    trued.save("distance")
+
+    _save["distance"] = _trueDist
+
 
 def _makeDist2D():
     """Calculates the xy distance to each visible point on the raster, ignoring differences in height."""
@@ -121,6 +127,7 @@ def _makeDist2D():
     return distances
 
 def _makeAntenna():
+    global _save
     """Generate theta, the pitch, and phi, bearing relative to antenna direction, of each point on raster. Result is in radians."""
     theta = np.full_like(_vis,-1,"float32")
     phi = np.full_like(_vis,-1,"float32")
@@ -129,23 +136,27 @@ def _makeAntenna():
     # Both use radians
     theta[m] = np.arcsin((_heightmap[m]-_elevation)/_trueDist[m])
     phi[m] = ((_directions[m]-_antennaDir)%360)*math.pi/180.0
-    
-    theta = arcpy.NumPyArrayToRaster(theta,arcpy.Point(_cropLeft,_cropLow),30,30,-1)
-    theta.save("antennaTheta")
-    phi = arcpy.NumPyArrayToRaster(phi,arcpy.Point(_cropLeft,_cropLow),30,30,-1)
-    phi.save("antennaPhi")
+
+    _save["antennaTheta"] = theta
+    _save["antennaPhi"] = phi
+
 
 def generateMaps():
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data."""
-    global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground
+    global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground, start, segment
     if not _SetupRun:
         Setup()
-
+        
+    current = clock()
+    
     os.makedirs(_PATH)
     arcpy.env.workspace = os.getcwd() + "\\" + _PATH
     
     _createPoint()
-    
+
+    small = clock()
+    ####################################################################################################
+    #### over 70% of time spent in this segment
     # elevation can be given absolutely or relative to ground
     if _isOffset:
         visibletemp = arcpy.Viewshed2_3d(_raster,"viewshed.shp","visibletemp","",
@@ -161,7 +172,14 @@ def generateMaps():
 
     arcpy.Clip_management("visibletemp",
         str(_cropLeft)+" "+str(_cropLow)+" "+str(_cropLeft+30*_cropWidth)+" "+str(_cropLow+30*_cropHeight),"visible")
+
+    segment += clock()-small
+    ###################################################################################################
+
+
     _vis = arcpy.RasterToNumPyArray("visible",corner,_cropWidth,_cropHeight, -1)
+    _save["visible"] = _vis
+ 
 
     _heightmap = arcpy.RasterToNumPyArray(_raster,corner,_cropWidth,_cropHeight, -1).astype("float64")
 
@@ -185,7 +203,11 @@ def generateMaps():
 
     if _antennaDir is not None:
         _makeAntenna()
-    
+        np.savez_compressed(_PATH+"/arrays.npz",visible=_save["visible"],distance=_save["distance"],
+                            incidence=_save["incidence"],antennaTheta=_save["antennaTheta"],antennaPhi=_save["antennaPhi"]) 
+    else:
+        np.savez_compressed(_PATH+"/arrays.npz",visible=_save["visible"],distance=_save["distance"],
+                            incidence=_save["incidence"])   
 
     # stores coordinates, z being against reference and elevation being above ground
     with open(_PATH+"\\x_y_z_elevation","w") as f:
@@ -194,6 +216,10 @@ def generateMaps():
     # unnecessary objects deleted at end
     arcpy.Delete_management("viewtable")
     arcpy.Delete_management("visibletemp")
+    arcpy.Delete_management("visible")
+    arcpy.Delete_management("viewshed.shp")
+
+    start += clock()-current
 
 def finish():
     """Check the arcpy extensions used back in (done by default when program ends)."""

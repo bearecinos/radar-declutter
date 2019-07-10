@@ -4,7 +4,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from os import listdir
-import arcpy
 import progressbar
 from scipy import signal
 
@@ -75,9 +74,10 @@ class IDLWave:
         return np.exp(-t**2/self.c)
 
 def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
-    visible = arcpy.RasterToNumPyArray(filename+"\\visible",nodata_to_value = -1)
-    distance = arcpy.RasterToNumPyArray(filename+"\\distance",nodata_to_value = -1).astype(float)
-    angle = arcpy.RasterToNumPyArray(filename+"\\incidence",nodata_to_value = -1).astype(float)
+    arrays = np.load(filename+"/arrays.npz")
+    visible = arrays["visible"]
+    distance = arrays["distance"]
+    angle = arrays["incidence"]
     height,width = visible.shape[0], visible.shape[1]
     sample = np.full((_steps),0,"float")
     # use proper mask?
@@ -101,15 +101,12 @@ titles = ["Specular n=1"]
 #titles = ["IDL method"]
 def compare(name,adjusted=False,wave=GaussianDot()):
     returnData = []
-    print "preparing"
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(15,10))
-    arcpy.env.workspace = "C:\\Users\\dboyle\\OneDrive\\generation\\"+name
     files = listdir(name)
     heights = []
     
-    print "Environment setup"
-    with open(name+"\\"+files[0]+"\\x_y_z_elevation","r") as f:
+    with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
         meta = f.read().split(",")
         x0 = float(meta[0])
         y0 = float(meta[1])
@@ -119,10 +116,10 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         out = np.full((len(files),_steps),0)
         for i in progressbar.progressbar(range(len(files))):
             filename = files[i]
-            with open(name+"\\"+filename+"\\x_y_z_elevation","r") as f:
+            with open(name+"/"+filename+"/x_y_z_elevation","r") as f:
                 meta = f.read().split(",")
                 heights.append(float(meta[2]))
-            out[i] = processSlice(filename,models[j],wave) 
+            out[i] = processSlice(name+"/"+filename,models[j],wave) 
 
         if adjusted:
             highest = max(heights)
@@ -153,8 +150,7 @@ def compare(name,adjusted=False,wave=GaussianDot()):
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(15,10))
-    arcpy.env.workspace = "C:\\Users\\dboyle\\OneDrive\\generation\\"+filename
-    ys = processSlice("",intensityModel=raySpecular,wave=wave)
+    ys = processSlice(filename,intensityModel=raySpecular,wave=wave)
     xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
     plt.plot(xs,ys,color="black")
     plt.fill_between(xs,ys,0,where=(ys>0),color="black")
@@ -163,12 +159,10 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
 def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(20,10))
-    arcpy.env.workspace = "C:\\Users\\dboyle\\OneDrive\\generation\\"+name
     files = listdir(name)
     heights = []
     
-    print "Environment setup"
-    with open(name+"\\"+files[0]+"\\x_y_z_elevation","r") as f:
+    with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
         meta = f.read().split(",")
         x0 = float(meta[0])
         y0 = float(meta[1])
@@ -177,10 +171,10 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     out = np.full((len(files),_steps),0)
     for i in progressbar.progressbar(range(len(files))):
         filename = files[i]
-        with open(name+"\\"+filename+"\\x_y_z_elevation","r") as f:
+        with open(name+"/"+filename+"/x_y_z_elevation","r") as f:
             meta = f.read().split(",")
             heights.append(float(meta[2]))
-        out[i] = processSlice(filename,intensityModel,wave)  
+        out[i] = processSlice(name+"/"+filename,intensityModel,wave)  
 
     if adjusted:
         highest = max(heights)
