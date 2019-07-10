@@ -1,8 +1,7 @@
 import numpy as np
-import math
-import matplotlib.pyplot as plt
-import scipy.signal as signal
-from mpl_toolkits.mplot3d import Axes3D
+#import matplotlib.pyplot as plt
+#import scipy.signal as signal
+#from mpl_toolkits.mplot3d import Axes3D
 
 # y,x = np.indices([50,50])
 # fig = plt.figure()
@@ -39,15 +38,15 @@ def quadHeight(x,y):
     b = (dx**2*grid[cornery+1,cornerx+1] + (1-dx)**2*grid[cornery+1,cornerx])/tx
     return (dy**2*b + (1-dy)**2*a)/ty
 
-def visible(x,y,elevation=100,isOffset=True): # need to flip y???
+def visible(startx,starty,x,y,elevation=100,isOffset=True): # need to flip y???
     vis = np.full_like(x,1,"float64")
     endh = quadHeight(x,y)
     if isOffset:
-        starth = quadHeight(np.array([px]),np.array([py]))+elevation
+        starth = quadHeight(np.array([startx]),np.array([starty]))+elevation
     else:
         starth = elevation
-    dx = x-px
-    dy = y-py
+    dx = x-startx
+    dy = y-starty
     norm = (dx**2+dy**2)**0.5
 
     # ignores divide by 0 cases in coming loop
@@ -55,45 +54,42 @@ def visible(x,y,elevation=100,isOffset=True): # need to flip y???
     
     dx /= norm
     dy /= norm
-
+    # more fine grain steps?
     for i in range(1,int(np.amax(norm))):
         m = norm >= i+1 # equivalent to a non-inclusive upper bound of int(norm)
-        thisx = px+i*dx[m]
-        thisy = px+i*dy[m]
+        # should this be the case? or should it just be >= i?
+        thisx = startx+i*dx[m]
+        thisy = starty+i*dy[m]
         h = quadHeight(thisx,thisy)
         w = h >= (i/norm[m])*endh[m]+(1.0-i/norm[m])*starth
         vis[[a[w] for a in np.where(m)]] = -1
     return vis
 
-gridsize = 30
-maxRange = 3000
-px,py = 105.0, 105.0
+##gridsize = 30
+##maxRange = 3000
+##px,py = 105.0, 105.0
 
-def viewshed(inGrid,px,py,elevation=100,isOffset=True,maxrange=3000,size=30):
+
+# y passed in world coordinates so grid coordinates are height-1-y
+def viewshed(inGrid,pointx,pointy,elevation=100,isOffset=True,maxrange=3000,size=30):
     global grid, maxRange, gridsize
     maxRange = maxrange
     gridsize = size
     grid = inGrid
     gheight, gwidth = grid.shape
+    # CHANGED
+    pointy = gheight - pointy - 1
+    
     view = np.full_like(grid,-1,int)
     maxSquaredCells = (maxRange/gridsize)**2
 
-    ys, xs = np.indices(grid.shape)
-    #ys = gheight - ys
+    ys, xs = np.indices(grid.shape,float)
 
-    squareDist = (xs-px)**2+(gheight-ys-py)**2
+    squareDist = (xs-pointx)**2+(ys-pointy)**2
     inRange = squareDist < maxSquaredCells
-
-    view[inRange] = visible(xs[inRange],ys[inRange],elevation,isOffset)
+    
+    view[inRange] = visible(pointx,pointy,xs[inRange],ys[inRange],elevation,isOffset)
     
     return view
-    
-##oth = np.full_like(grid,False)
-##for x in range(1,209):
-##    for y in range(1,209):
-##        oth[y][x] = visible(x,y)
-##plt.subplot("121")
-##plt.contourf(grid,100)
-##plt.subplot("122")
-##plt.imshow(oth)
-##plt.show()
+  
+
