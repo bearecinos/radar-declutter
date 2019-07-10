@@ -28,91 +28,66 @@ def bandpass_filter(data, lowcut, highcut, fs, order=5):
 ##grid = bandpass_filter(grid,0,0.05,1).swapaxes(0,1)
 ##grid = bandpass_filter(grid,0,0.05,1)[10:,10:]
 
-def getHeight(x,y):
-    cornerx = int(x)
-    cornery = int(y)
-    num = 0
-    den = 0
-    for cx in range(2):
-        for cy in range(2):
-            d = ((cornerx+cx-x)**2+(cornery+cy-y)**2)**0.5
-            if d == 0:
-                return grid[cornerx+cx,cornery+cy]
-            num += grid[cornery+cy,cornerx+cx]/d
-            den += 1/d
-    return num/den
-
-def linHeight(x,y):
-    cornerx = int(x)
-    cornery = int(y)
-    dx = x-cornerx
-    dy = y-cornery
-    a = dx*grid[cornery][cornerx+1] + (1-dx)*grid[cornery][cornerx]
-    b = dx*grid[cornery+1][cornerx+1] + (1-dx)*grid[cornery+1][cornerx]
-    return dy*b + (1-dy)*a
-
 def quadHeight(x,y):
-    cornerx = int(x)
-    cornery = int(y)
+    cornerx = x.astype(int)
+    cornery = y.astype(int)
     dx = x-cornerx
     tx = dx**2+(1-dx)**2
     dy = y-cornery
     ty = dy**2+(1-dy)**2
-    a = (dx**2*grid[cornery][cornerx+1] + (1-dx)**2*grid[cornery][cornerx])/tx
-    b = (dx**2*grid[cornery+1][cornerx+1] + (1-dx)**2*grid[cornery+1][cornerx])/tx
+    a = (dx**2*grid[cornery,cornerx+1] + (1-dx)**2*grid[cornery,cornerx])/tx
+    b = (dx**2*grid[cornery+1,cornerx+1] + (1-dx)**2*grid[cornery+1,cornerx])/tx
     return (dy**2*b + (1-dy)**2*a)/ty
 
-def visible(x,y,elevation=100,isOffset=True):
+def visible(x,y,elevation=100,isOffset=True): # need to flip y???
+    vis = np.full_like(x,1,"float64")
     endh = quadHeight(x,y)
     if isOffset:
-        starth = quadHeight(px,py)+elevation
+        starth = quadHeight(np.array([px]),np.array([py]))+elevation
     else:
         starth = elevation
     dx = x-px
     dy = y-py
     norm = (dx**2+dy**2)**0.5
-    if norm == 0:
-        return True
+
+    # ignores divide by 0 cases in coming loop
+    norm[norm==0] = 0.1
+    
     dx /= norm
     dy /= norm
-    for i in range(1,int(norm)):
-        thisx = px+i*dx
-        thisy = px+i*dy
+
+    for i in range(1,int(np.amax(norm))):
+        m = norm >= i+1 # equivalent to a non-inclusive upper bound of int(norm)
+        thisx = px+i*dx[m]
+        thisy = px+i*dy[m]
         h = quadHeight(thisx,thisy)
-        if h >= (i/norm)*endh+(1.0-i/norm)*starth:
-            return -1
-    return 1
+        w = h >= (i/norm[m])*endh[m]+(1.0-i/norm[m])*starth
+        vis[[a[w] for a in np.where(m)]] = -1
+    return vis
 
 gridsize = 30
 maxRange = 3000
 px,py = 105.0, 105.0
+
 def viewshed(inGrid,px,py,elevation=100,isOffset=True,maxrange=3000,size=30):
     global grid, maxRange, gridsize
     maxRange = maxrange
     gridsize = size
     grid = inGrid
     gheight, gwidth = grid.shape
-    xmin = max(0,int(px-maxRange/gridsize))
-    ymin = max(0,int(py-maxRange/gridsize))
-    xmax = min(int(px+maxRange/gridsize+1),gwidth)
-    ymax = min(int(py+maxRange/gridsize+1),gwidth)
     view = np.full_like(grid,-1,int)
     maxSquaredCells = (maxRange/gridsize)**2
 
-    #ys, xs = np.indices(grid.shape)
+    ys, xs = np.indices(grid.shape)
     #ys = gheight - ys
 
-    #squareDist = (xs-px)**2+(ys-py)**2
-    #inRange = sqaureDist < maxSquaredCells
+    squareDist = (xs-px)**2+(gheight-ys-py)**2
+    inRange = squareDist < maxSquaredCells
+
+    view[inRange] = visible(xs[inRange],ys[inRange],elevation,isOffset)
     
-    for x in range(xmin,xmax):
-        for y in range(ymin,ymax):
-            if (x-px)**2+(gheight-y-py)**2 < maxSquaredCells:
-                view[y][x] =  visible(x,y,elevation,isOffset) 
     return view
     
-    
-
 ##oth = np.full_like(grid,False)
 ##for x in range(1,209):
 ##    for y in range(1,209):

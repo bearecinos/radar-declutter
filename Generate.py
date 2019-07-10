@@ -3,6 +3,8 @@ import math
 import numpy as np
 import os
 from time import clock
+import viewshed
+
 
 start = 0
 segment = 0
@@ -51,34 +53,10 @@ def Setup():
     arcpy.env.snapRaster = _raster
     os.chdir("C:\\Users\\dboyle\\OneDrive\\generation") # sometimes changes
 
-    arcpy.CheckOutExtension("3D")
-    arcpy.CheckOutExtension("Spatial")
+    #arcpy.CheckOutExtension("3D")
+    #arcpy.CheckOutExtension("Spatial")
     _SetupRun = True
 
-def _crop(name="visibletemp"):
-    """Calculates the corner of the smaller raster to use to generate data.
-    Parameters:
-    name string (optional) : Name of raster to use to calculate the new corner from. Choice shouldn't have any effect on results."""
-    global _cropLeft, _cropLow
-    rasterData = arcpy.Raster(name).extent
-    low = rasterData.YMin
-    left = rasterData.XMin
-    # rounds down the corner
-    pointCoords = [int((_pointx-left)/30),int((_pointy-low)/30)]
-
-    _cropLeft = left + (pointCoords[0]-_cropWidth/2)*30
-    _cropLow = low + (pointCoords[1]-_cropHeight/2)*30
-
-# creates 'viewshed' for radar location
-def _createPoint():
-    """Adds a POINT Featureclass and adds a point at the specified coordinates."""
-    arcpy.CreateFeatureclass_management("\\","viewshed","POINT")
-
-    cur = arcpy.InsertCursor("viewshed.shp") # allow write access
-    p = arcpy.Point(_pointx,_pointy) # x and y coordinates
-    row = cur.newRow()
-    row.setValue("Shape",p) # set only editable field of row
-    cur.insertRow(row)
 
 # creates npArray of compass direction to all visible points
 def _getDirections():
@@ -143,47 +121,54 @@ def _makeAntenna():
 
 def generateMaps():
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data."""
-    global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground, start, segment
+    global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground, start, segment, _cropLeft, _cropLow
     if not _SetupRun:
         Setup()
         
     current = clock()
     
     os.makedirs(_PATH)
-    arcpy.env.workspace = os.getcwd() + "\\" + _PATH
-    
-    _createPoint()
 
-    small = clock()
+    
     ####################################################################################################
     #### over 70% of time spent in this segment
-    # elevation can be given absolutely or relative to ground
-    if _isOffset:
-        visibletemp = arcpy.Viewshed2_3d(_raster,"viewshed.shp","visibletemp","",
-                                 "OBSERVERS","","viewtable","","","",str(_above_ground)+" Meters",
-                                 "","",str(_RANGE)+" Meters","3D","","","","","ALL_SIGHTLINES")
-    else:
-        visibletemp = arcpy.Viewshed2_3d(_raster,"viewshed.shp","visibletemp","",
-                                 "OBSERVERS","","viewtable","","",str(_above_ground)+" Meters","",
-                                 "","",str(_RANGE)+" Meters","3D","","","","","ALL_SIGHTLINES")
     
-    _crop("visibletemp")
+    rasterData = _raster.extent
+    low = rasterData.YMin
+    left = rasterData.XMin
+    # rounds down the corner
+    pointCoords = [int(_pointx-left)/30,int(_pointy-low)/30]
+    _cropLeft = left + (pointCoords[0]-_cropWidth/2)*30
+    _cropLow = low + (pointCoords[1]-_cropHeight/2)*30
     corner = arcpy.Point(_cropLeft,_cropLow)
+    
+    _heightmap = arcpy.RasterToNumPyArray(_raster,corner,_cropWidth,_cropHeight, -1).astype("float64")
 
-    arcpy.Clip_management("visibletemp",
-        str(_cropLeft)+" "+str(_cropLow)+" "+str(_cropLeft+30*_cropWidth)+" "+str(_cropLow+30*_cropHeight),"visible")
+    small = clock()
 
+    # should call with grid coordinates, not world, i.e. flip y???
+    _vis = viewshed.viewshed(_heightmap,(_pointx-_cropLeft)/30.0, (_pointy-_cropLow)/30.0,_above_ground,_isOffset)
+    
     segment += clock()-small
+
+    # cropping - numpy arrays formatted so that printing gives map view i.e.
+    # [[(0,1),  (1,1)],
+    #  [(0,0),  (1,0)]]
+    # so point (x,y) actually at (height-1-y,x)
+    # yCoord = int(_pointy-ex.YMin)/30
+    # xCoord = int(_pointx-ex.XMin)/30
+    # cro = ra[height-yCoord-105:height-yCoord+105,xCoord-105:xCoord+105] 
+    # calling in opposite order so inclusive rather than exclusive, hence dont need -1 i.e.
+    # if grid size 1 from corner: height-0-1 is only cell needed, up to height-0
+
+    # array[height-coord-width/2:height-coord+width/2,coord-width/2:coord+width/2]
+
+    
     ###################################################################################################
 
 
-    _vis = arcpy.RasterToNumPyArray("visible",corner,_cropWidth,_cropHeight, -1)
     _save["visible"] = _vis
- 
-
-    _heightmap = arcpy.RasterToNumPyArray(_raster,corner,_cropWidth,_cropHeight, -1).astype("float64")
-
-    pointCoords = [int((_pointx-_cropLeft)/30),int((_pointy-_cropLow)/30)]
+    pointCoords = [int(_pointx-_cropLeft)/30,int(_pointy-_cropLow)/30]
     if _isOffset:
         _elevation = _heightmap[_cropHeight-pointCoords[1],pointCoords[0]]+_above_ground
     else:
@@ -212,12 +197,6 @@ def generateMaps():
     # stores coordinates, z being against reference and elevation being above ground
     with open(_PATH+"\\x_y_z_elevation","w") as f:
         f.write(str(_pointx)+","+str(_pointy)+","+str(_elevation)+","+str(_above_ground))
-
-    # unnecessary objects deleted at end
-    arcpy.Delete_management("viewtable")
-    arcpy.Delete_management("visibletemp")
-    arcpy.Delete_management("visible")
-    arcpy.Delete_management("viewshed.shp")
 
     start += clock()-current
 
