@@ -1,6 +1,9 @@
 import Generate
 import progressbar
 from numpy import genfromtxt
+import xml.etree.cElementTree as ET
+import utm
+#https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
 
 # alternative for z coordinate vs height above ground
 def genPath(xs,ys,zs,name,isOffset=True):
@@ -37,3 +40,27 @@ def loadFromFile(filename,outName=None):
     data = genfromtxt(filename,delimiter=",",skip_header=1).swapaxes(0,1)
     return isOffset
     genPath(data[0],data[1],data[2],outName,isOffset)
+
+def loadGpx(filename,outName=None):
+    root = ET.parse(filename).getroot()
+    if outName is None:
+        n = root.find("name")
+        if n is None:
+            outName = filename[:-4] # removes .xml ending
+        else:
+            outName = n.text
+    lats,lons,zs = [],[],[]
+    track = root.find("trk")
+    for seg in track.findall("trkseg"):
+	for pt in seg.findall("trkpt"):
+	    lats.append(pt.get("lat"))
+	    lons.append(pt.get("lon"))
+	    zs.append(pt.find("ele").text)
+    lats = np.array(lats,float)
+    lons = np.array(lons,float)
+    zs = np.array(zs,float)
+    # Convert Lon/lat to x,y for coordinate system
+    xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons) # says zone 45R?
+    # x and y coordinates still appear correct though
+    gePath(xs,ys,zs,outName,False)
+    

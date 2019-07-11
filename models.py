@@ -73,19 +73,28 @@ class IDLWave:
     def amplitude(self,t):
         return np.exp(-t**2/self.c)
 
+def directionality(theta,phi):
+    return np.sin(theta)**2 # IDL model appeared to use sin(theta)**8
+
 def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
     arrays = np.load(filename+"/arrays.npz")
     visible = arrays["visible"]
     distance = arrays["distance"]
     angle = arrays["incidence"]
+    theta,phi = None, None
+    if "antennaTheta" in list(arrays):
+        theta = arrays["antennaTheta"]
+        phi = arrays["antennaPhi"]
     height,width = visible.shape[0], visible.shape[1]
-    sample = np.full((_steps),0,"float")
-    # use proper mask?
+    #sample = np.full((_steps),0,"float")
+    
     m = (visible == 1) & (distance < _MAXDIST)
     t = (_time(distance[m])/_GRANULARITY).astype(int)
-    intensity = intensityModel(angle[m])
-    for i in range(_steps):
-        sample[i] = np.sum(intensity[t==i])
+    intensity = intensityModel(angle[m])*directionality(theta[m],phi[m])
+
+    sample = np.array([np.sum(intensity[t==i]) for i in range(_steps)])
+    #for i in range(_steps):
+    #    sample[i] = np.sum(intensity[t==i])
     low = int(math.floor(-wave.lim/_GRANULARITY))
     high = 1-low
     w = np.full((high-low),0,"float")
