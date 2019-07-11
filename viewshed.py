@@ -8,26 +8,12 @@ import numpy as np
 # ax = fig.add_subplot(1, 3, 1, projection='3d')
 # ax.plot_wireframe(x,y,res)
 
-
 # To simplify initially, assume grid is n by n
 # and have view point in grid coordinates e.g. 105.4,105.3 (decimal for accuracy)
 # also assume outer bounds of grid never of interest so automatically not considered
 # i.e. only do visible for grid[1:-1,1:-1]
 
-#grid = np.full((210,210),0.0)
-
-def bandpass_filter(data, lowcut, highcut, fs, order=5):
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    b, a = signal.butter(order, [low, high], btype='band')
-    return signal.lfilter(b, a, data)
-
-##grid = np.random.rand(220,220)*50.0
-##grid = bandpass_filter(grid,0,0.05,1).swapaxes(0,1)
-##grid = bandpass_filter(grid,0,0.05,1)[10:,10:]
-
-def quadHeight(x,y):
+def quadHeight(x,y): # bi-quadratic interpolation of height
     cornerx = x.astype(int)
     cornery = y.astype(int)
     dx = x-cornerx
@@ -38,7 +24,8 @@ def quadHeight(x,y):
     b = (dx**2*grid[cornery+1,cornerx+1] + (1-dx)**2*grid[cornery+1,cornerx])/tx
     return (dy**2*b + (1-dy)**2*a)/ty
 
-def visible(startx,starty,x,y,elevation=100,isOffset=True): # need to flip y???
+def visible(startx,starty,x,y,elevation=100,isOffset=True):
+    global touched
     vis = np.full_like(x,1,"float64")
     endh = quadHeight(x,y)
     if isOffset:
@@ -54,21 +41,22 @@ def visible(startx,starty,x,y,elevation=100,isOffset=True): # need to flip y???
     
     dx /= norm
     dy /= norm
+    dh = (endh-starth)/norm
     # more fine grain steps?
+
+    thisx = startx
+    thisy = starty
+    thish = np.full_like(norm,starth)
     for i in range(1,int(np.amax(norm))):
-        m = norm >= i+1 # equivalent to a non-inclusive upper bound of int(norm)
+        m = (norm >= i+1)&(vis==1) # equivalent to a non-inclusive upper bound of int(norm)
         # should this be the case? or should it just be >= i?
-        thisx = startx+i*dx[m]
-        thisy = starty+i*dy[m]
-        h = quadHeight(thisx,thisy)
-        w = h >= (i/norm[m])*endh[m]+(1.0-i/norm[m])*starth
+        thisx += dx
+        thisy += dy
+        thish += dh
+        h = quadHeight(thisx[m],thisy[m])
+        w = h >= thish[m]
         vis[[a[w] for a in np.where(m)]] = -1
     return vis
-
-##gridsize = 30
-##maxRange = 3000
-##px,py = 105.0, 105.0
-
 
 # y passed in world coordinates so grid coordinates are height-1-y
 def viewshed(inGrid,pointx,pointy,elevation=100,isOffset=True,maxrange=3000,size=30):
@@ -77,7 +65,7 @@ def viewshed(inGrid,pointx,pointy,elevation=100,isOffset=True,maxrange=3000,size
     gridsize = size
     grid = inGrid
     gheight, gwidth = grid.shape
-    # CHANGED
+    
     pointy = gheight - pointy - 1
     
     view = np.full_like(grid,-1,int)

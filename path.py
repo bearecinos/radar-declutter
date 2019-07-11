@@ -19,7 +19,6 @@ def genPath(xs,ys,zs,name,isOffset=True):
             direction = math.degrees(math.atan2(xs[i-1]-xs[i+1], ys[i-1]-ys[i+1]))+180
         Generate.setPoint(xs[i],ys[i],name+"\\point"+str(i),zs[i],isOffset,direction)
         Generate.generateMaps()
-    Generate.finish()
 
 # format: 1st line is "True"/"False" for isOffset
 # each other line is x,y,z

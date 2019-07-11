@@ -1,4 +1,5 @@
-import Generate 
+#import Generate
+import noArcpy as Generate
 from os import remove, path
 from shutil import rmtree
 import numpy as np
@@ -49,7 +50,6 @@ def generateAll():
         with open("tmp","a") as f:
             f.write(str(i)+"\n")
     remove("tmp")
-    Generate.finish()
 
 def resume():
     """Read the tmp file created when points are generated and use this to resume a partially complete path.
@@ -78,4 +78,3 @@ def resume():
             with open("tmp","a") as f:
                 f.write(str(i)+"\n")
         remove("tmp")
-        Generate.finish()

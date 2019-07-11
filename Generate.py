@@ -1,13 +1,11 @@
 import arcpy
 import math
 import numpy as np
-import os
+from os import makedirs
 from time import clock
 import viewshed
 
 
-start = 0
-segment = 0
 
 _pointx, _pointy = 469900.0, 3095000.0
 _above_ground, _isOffset = 100.0, True
@@ -43,18 +41,16 @@ _CellSize = 30.0
 
 def Setup():
     """Performs most of the initialisation needed by arcpy."""
-    global _raster, _aspectRaster, _slopeRaster, _SetupRun
-    arcpy.env.outputCoordinateSystem = arcpy.SpatialReference("WGS 1984 UTM Zone 45N") #  for use defining coordinates
-
+    global _raster, _aspectRaster, _slopeRaster, _SetupRun, t1
+    t = clock()
+   
     _raster = arcpy.Raster("default.gdb/srtm30_dem_utm45n_crop")
     _slopeRaster = arcpy.Raster("default.gdb/Slope_srtm")
     _aspectRaster = arcpy.Raster("default.gdb/Aspect_srtm")
-    
-    arcpy.env.snapRaster = _raster
-    os.chdir("C:\\Users\\dboyle\\OneDrive\\generation") # sometimes changes
 
-    #arcpy.CheckOutExtension("3D")
-    #arcpy.CheckOutExtension("Spatial")
+    t1 = clock() - t
+  
+
     _SetupRun = True
 
 
@@ -125,9 +121,8 @@ def generateMaps():
     if not _SetupRun:
         Setup()
         
-    current = clock()
     
-    os.makedirs(_PATH)
+    makedirs(_PATH)
 
     
     ####################################################################################################
@@ -144,12 +139,10 @@ def generateMaps():
     
     _heightmap = arcpy.RasterToNumPyArray(_raster,corner,_cropWidth,_cropHeight, -1).astype("float64")
 
-    small = clock()
 
     # should call with grid coordinates, not world, i.e. flip y???
     _vis = viewshed.viewshed(_heightmap,(_pointx-_cropLeft)/30.0, (_pointy-_cropLow)/30.0,_above_ground,_isOffset)
     
-    segment += clock()-small
 
     # cropping - numpy arrays formatted so that printing gives map view i.e.
     # [[(0,1),  (1,1)],
@@ -198,9 +191,19 @@ def generateMaps():
     with open(_PATH+"\\x_y_z_elevation","w") as f:
         f.write(str(_pointx)+","+str(_pointy)+","+str(_elevation)+","+str(_above_ground))
 
-    start += clock()-current
+def storeRasters():
+    """Save full rasters used by arcpy as numpy arrays to avoid arcpy use in future"""
+    if not _SetupRun:
+        Setup()
+    height = arcpy.RasterToNumPyArray(_raster)
+    aspect = arcpy.RasterToNumPyArray(_aspectRaster)
+    slope = arcpy.RasterToNumPyArray(_slopeRaster)
+    ex = _raster.extent
+    left = ex.XMin
+    low = ex.YMin
+    line = str(left)+","+str(low)+","+str(_CellSize)
+    np.savez_compressed("maps.npz",heightmap=height,aspect=aspect,slope=slope)
+    with open("info.txt","w") as f:
+        f.write(line)
+    
 
-def finish():
-    """Check the arcpy extensions used back in (done by default when program ends)."""
-    arcpy.CheckInExtension("3D")
-    arcpy.CheckInExtension("Spatial")
