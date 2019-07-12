@@ -18,7 +18,7 @@ _SetupRun = False
 _CellSize = 30.0
 
 
-def Setup(maps="maps.npz",info="info.txt"): # MUST CALL SEPARATELY
+def Setup(maps="maps.npz",info="info.txt"): 
     """Loads the full numpy arrays to be cropped for each point."""
     global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize
 
@@ -93,6 +93,7 @@ def _makeAntenna(vis,heightmap,elevation,trueDist,directions,antennaDir):
 def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=None):
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data."""
     if not _SetupRun:
+        print "called"
         Setup()
         
     os.makedirs(path)
@@ -138,7 +139,7 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
                             incidence=incidence)   
 
     # stores coordinates, z being against reference and elevation being above ground
-    with open(path+"\\x_y_z_elevation","w") as f:
+    with open(path+"/x_y_z_elevation","w") as f:
         f.write(str(pointx)+","+str(pointy)+","+str(elevation)+","+str(above_ground))
     return 0
     

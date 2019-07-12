@@ -1,5 +1,3 @@
-#import Generate
-import noArcpy as Generate
 from os import remove, path
 from shutil import rmtree
 import numpy as np
@@ -43,12 +41,9 @@ def generateAll():
     ys = np.linspace(_startY,_endY,_steps)
     with open("tmp","w") as f:
         f.write(str(_startX)+","+str(_startY)+","+str(_endX)+","+str(_endY)+","+str(_steps)+","+_filename+"\n")
-    print "Performing setup..."
-    Generate.Setup()
-    print "Complete"
+    stateless.Setup()
     for i in progressbar(range(_steps)):
-        Generate.setPoint(xs[i],ys[i],_filename+"\\point"+str(i))
-        Generate.generateMaps()
+        stateless.generateMaps(xs[i],ys[i],_filename+"/point"+str(i))
         with open("tmp","a") as f:
             f.write(str(i)+"\n")
     remove("tmp")
@@ -60,9 +55,6 @@ def workerCall(args):
 def parallelAll():
     xs = np.linspace(_startX,_endX,_steps)
     ys = np.linspace(_startY,_endY,_steps)
-
-    stateless.Setup()
-    env = stateless.getSettings()
     
     pool = mp.Pool(mp.cpu_count())
     data = [(x,y,_filename+"/point"+str(i)) for x,y,i in zip(xs,ys,np.arange(_steps))]
@@ -90,17 +82,17 @@ def resume():
     if done <= 0:    
         generateAll()
     else:
-        if path.exists(_filename+"\\point"+str(done)):
+        if path.exists(_filename+"/point"+str(done)):
             try:
-                rmtree(_filename+"\\point"+str(done))
+                rmtree(_filename+"/point"+str(done))
             except OSError as e:
                 print "cleanup failed, please run resume() again"
                 return 
         xs = np.linspace(_startX,_endX,_steps)
         ys = np.linspace(_startY,_endY,_steps)
+        stateless.Setup()
         for i in progressbar(range(done,_steps),min_value=done,max_value=_steps):
-            Generate.setPoint(xs[i],ys[i],_filename+"\\point"+str(i))
-            Generate.generateMaps()
+            stateless.generateMaps(xs[i],ys[i],_filename+"/point"+str(i))
             with open("tmp","a") as f:
                 f.write(str(i)+"\n")
         remove("tmp")

@@ -3,3 +3,7 @@ noArcpy - spends 13.3 seconds to complete 'detailed'
 
 40% speedup with 50 points by running in parallel. But no progressbar.
 (Allowing setup to be called by each thread i.e. 4 times)
+
+No arcpy, 50 point path:
+	Standard desktop (4 cores): Serial - 9.8s, Parallel - 6.3s
+	HPC (88 cores): Serial - 8.9s, Parallel - 0.17s 

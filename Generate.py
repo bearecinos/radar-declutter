@@ -188,7 +188,7 @@ def generateMaps():
                             incidence=_save["incidence"])   
 
     # stores coordinates, z being against reference and elevation being above ground
-    with open(_PATH+"\\x_y_z_elevation","w") as f:
+    with open(_PATH+"/x_y_z_elevation","w") as f:
         f.write(str(_pointx)+","+str(_pointy)+","+str(_elevation)+","+str(_above_ground))
 
 def storeRasters():
