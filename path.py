@@ -7,8 +7,7 @@ import multiprocessing as mp
 #https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
 
 def workerCall(args):
-    x,y,name,z,isOffset,angle = args
-    stateless.generateMaps(x,y,name,z,isOffset,angle)
+    stateless.generateMaps(*args)
     
 def genPath(xs,ys,zs,name,isOffset=True):
     """Generates path data for the specified points, including antenna orientation data.

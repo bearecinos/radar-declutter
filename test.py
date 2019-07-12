@@ -49,8 +49,7 @@ def generateAll():
     remove("tmp")
 
 def workerCall(args):
-    x,y,name = args
-    stateless.generateMaps(x,y,name)
+    stateless.generateMaps(*args)
 
 def parallelAll():
     xs = np.linspace(_startX,_endX,_steps)
@@ -97,7 +96,7 @@ def resume():
                 f.write(str(i)+"\n")
         remove("tmp")
 
-if __name__=="__main__":
+if __name__=="__main__" and False:
     from time import clock
     setDetailed()
     t0 = clock()
