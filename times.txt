@@ -1,9 +1,12 @@
-noArcpy - spends 13.3 seconds to complete 'detailed'
-	- 11.8 seconds spent calling viewshed
-
-40% speedup with 50 points by running in parallel. But no progressbar.
-(Allowing setup to be called by each thread i.e. 4 times)
-
+Generation:
 No arcpy, 50 point path:
 	Standard desktop (4 cores): Serial - 9.8s, Parallel - 6.3s
 	HPC (88 cores): Serial - 8.9s, Parallel - 0.17s 
+
+Modelling/plotting:
+	50 points
+	Standard desktop (4 cores): Serial - 2.1s, Parallel - 2.2s
+	HPC (88 cores): Serial - 3.21s, Parallel - 0.72s
+	100 points
+	Standard desktop (4 cores): Serial - 4.1s, Parallel - 2.8s
+	HPC (88 cores): Serial - 5.73s, Parallel - 0.92s

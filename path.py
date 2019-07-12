@@ -1,11 +1,15 @@
-import Generate
+import stateless
 import progressbar
 from numpy import genfromtxt
 import xml.etree.cElementTree as ET
 import utm
+import multiprocessing as mp
 #https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
 
-# alternative for z coordinate vs height above ground
+def workerCall(args):
+    x,y,name,z,isOffset,angle = args
+    stateless.generateMaps(x,y,name,z,isOffset,angle)
+    
 def genPath(xs,ys,zs,name,isOffset=True):
     """Generates path data for the specified points, including antenna orientation data.
     Parameters:
@@ -13,16 +17,28 @@ def genPath(xs,ys,zs,name,isOffset=True):
     ys float array : array of y coordinates of path.
     zs float array : array of altitude/elevation above ground along path.
     isOffset boolean (optional) : whether then given z coordinates are altitude or relative to the ground. Default is relative."""
-    for i in progressbar.progressbar(range(len(xs))):
-        if i == 0:
-            direction = math.degrees(math.atan2(xs[i]-xs[i+1], ys[i]-ys[i+1]))+180
-        elif i == len(xs)-1:
-            direction = math.degrees(math.atan2(xs[i-1]-xs[i], ys[i-1]-ys[i]))+180
-        else:
-            direction = math.degrees(math.atan2(xs[i-1]-xs[i+1], ys[i-1]-ys[i+1]))+180
-        Generate.setPoint(xs[i],ys[i],name+"/point"+str(i),zs[i],isOffset,direction)
-        Generate.generateMaps()
+    direction = np.full_like(xs,0,float) # degrees
+    direction[0] = 180.0/np.pi*(np.arctan2(xs[0]-xs[1], ys[0]-ys[1]))+180.0
+    direction[-1] = 180.0/np.pi*(np.arctan2(xs[-2]-xs[-1], ys[-2]-ys[-1]))+180.0
+    m = np.full_like(xs,1,int)
+    m[[0,-1]] = 0
+    m2 = np.roll(m,-1)
+    m3 = np.roll(m,1)
+    direction[m] = 180.0/np.pi*(xs[m2]-xs[m3], ys[m2]-ys[m3]))+180.0
 
+    pool = mp.Pool(mp.cpu_count())
+    data = [(x,y,name+"/point"+str(i),z,isOffset,angle) for x,y,i,z,angle in
+                            zip(xs,ys,np.arange(_steps),zs,direction)]
+    fail = False
+    for r in progressbar(pool.imap_unordered(workerCall,data),max_value=_steps):
+        if r == -1:
+            fail = True
+    pool.close()
+    if fail:
+        print "Failed, setup didn't run correctly. Likely issue with state copying between processes"
+        return -1
+    return 0     
+    
 # format: 1st line is "True"/"False" for isOffset
 # each other line is x,y,z
 def loadFromFile(filename,outName=None):

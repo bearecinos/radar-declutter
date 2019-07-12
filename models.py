@@ -4,8 +4,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from os import listdir
-import progressbar
 from scipy import signal
+import multiprocessing as mp
 
 _MAXDIST = 30*105.0
 _GRANULARITY = 1e-8 # 10ns
@@ -89,8 +89,7 @@ def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
         theta = arrays["antennaTheta"]
         phi = arrays["antennaPhi"]
     height,width = visible.shape[0], visible.shape[1]
-    #sample = np.full((_steps),0,"float")
-    
+        
     m = (visible == 1) & (distance < _MAXDIST)
     t = (_time(distance[m])/_GRANULARITY).astype(int)
     intensity = intensityModel(angle[m])
@@ -98,8 +97,7 @@ def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
         intensity *= directionality(theta[m],phi[m])
 
     sample = np.array([np.sum(intensity[t==i]) for i in range(_steps)])
-    #for i in range(_steps):
-    #    sample[i] = np.sum(intensity[t==i])
+    
     low = int(math.floor(-wave.lim/_GRANULARITY))
     high = 1-low
     w = np.full((high-low),0,"float")
@@ -124,16 +122,17 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         meta = f.read().split(",")
         x0 = float(meta[0])
         y0 = float(meta[1])
-    cells = int(np.ceil(np.sqrt(len(models))))*110
+        cells = int(np.ceil(np.sqrt(len(models))))*110
     for j in range(len(models)):
         plt.subplot(cells+j+1)
         out = np.full((len(files),_steps),0)
-        for i in progressbar.progressbar(range(len(files))):
-            filename = files[i]
-            with open(name+"/"+filename+"/x_y_z_elevation","r") as f:
-                meta = f.read().split(",")
-                heights.append(float(meta[2]))
-            out[i] = processSlice(name+"/"+filename,models[j],wave) 
+
+        # Bit to parallelize
+        p = mp.Pool(mp.cpu_count())
+        data = [(i,(name+"/"+files[i],models[j],wave)) for i in range(len(files))]
+        for i,h,ar in p.imap_unordered(worker,data):
+            heights.append(h)
+            out[i] = ar
 
         if adjusted:
             highest = max(heights)
@@ -160,6 +159,13 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         plt.colorbar()
     plt.show()
     return returnData
+
+def worker(args):
+    i = args[0]
+    args = args[1]
+    with open(args[0]+"/x_y_z_elevation","r") as f:
+        h = float(f.read().split(",")[2])
+    return i, h, processSlice(*args) 
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
@@ -217,3 +223,4 @@ def showWave(wave=GaussianDot()):
     f = np.vectorize(wave.amplitude)
     plt.plot(x,f(x))
     plt.show()
+

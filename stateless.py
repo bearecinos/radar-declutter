@@ -93,7 +93,6 @@ def _makeAntenna(vis,heightmap,elevation,trueDist,directions,antennaDir):
 def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=None):
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data."""
     if not _SetupRun:
-        print "called"
         Setup()
         
     os.makedirs(path)

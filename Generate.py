@@ -191,7 +191,7 @@ def generateMaps():
     with open(_PATH+"/x_y_z_elevation","w") as f:
         f.write(str(_pointx)+","+str(_pointy)+","+str(_elevation)+","+str(_above_ground))
 
-def storeRasters():
+def storeRasters(): # Reason this file hasn't been deleted yet
     """Save full rasters used by arcpy as numpy arrays to avoid arcpy use in future"""
     if not _SetupRun:
         Setup()
