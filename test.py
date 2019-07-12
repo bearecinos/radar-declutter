@@ -4,6 +4,8 @@ from os import remove, path
 from shutil import rmtree
 import numpy as np
 from progressbar import progressbar
+import stateless
+import multiprocessing as mp
 
 _startX, _startY = 470305.0, 3094800.0
 _endX, _endY = 470038.0, 3095590.0
@@ -41,7 +43,7 @@ def generateAll():
     ys = np.linspace(_startY,_endY,_steps)
     with open("tmp","w") as f:
         f.write(str(_startX)+","+str(_startY)+","+str(_endX)+","+str(_endY)+","+str(_steps)+","+_filename+"\n")
-    print "Performing arcpy setup..."
+    print "Performing setup..."
     Generate.Setup()
     print "Complete"
     for i in progressbar(range(_steps)):
@@ -50,6 +52,30 @@ def generateAll():
         with open("tmp","a") as f:
             f.write(str(i)+"\n")
     remove("tmp")
+
+def workerCall(args):
+    x,y,name = args
+    stateless.generateMaps(x,y,name)
+
+def parallelAll():
+    xs = np.linspace(_startX,_endX,_steps)
+    ys = np.linspace(_startY,_endY,_steps)
+
+    stateless.Setup()
+    env = stateless.getSettings()
+    
+    pool = mp.Pool(mp.cpu_count())
+    data = [(x,y,_filename+"/point"+str(i)) for x,y,i in zip(xs,ys,np.arange(_steps))]
+    fail = False
+    for r in progressbar(pool.imap_unordered(workerCall,data),max_value=_steps):
+        if r == -1:
+            fail = True
+    pool.close()
+    if fail:
+        print "Failed, setup didn't run correctly. Likely issue with state copying between processes"
+        return -1
+    return 0   
+        
 
 def resume():
     """Read the tmp file created when points are generated and use this to resume a partially complete path.
@@ -78,3 +104,16 @@ def resume():
             with open("tmp","a") as f:
                 f.write(str(i)+"\n")
         remove("tmp")
+
+if __name__=="__main__":
+    from time import clock
+    setDetailed()
+    t0 = clock()
+    generateAll()
+    result = clock() - t0
+    _filename = "detailed1"
+    t0 = clock()
+    parallelAll()
+    result2 = clock() - t0
+    print "Serial: "+str(result)
+    print "Parallel: "+str(result2)

@@ -73,8 +73,11 @@ class IDLWave:
     def amplitude(self,t):
         return np.exp(-t**2/self.c)
 
+# Squared to account for also being receiver?
 def directionality(theta,phi):
-    return np.sin(theta)**2 # IDL model appeared to use sin(theta)**8
+    # IDL model appeared to use sin(theta)**8
+    # sin(3*theta) term adds side lobes of lesser intensity    
+    return np.sin(theta)**2*np.sin(3*theta)**2
 
 def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
     arrays = np.load(filename+"/arrays.npz")
@@ -90,7 +93,9 @@ def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
     
     m = (visible == 1) & (distance < _MAXDIST)
     t = (_time(distance[m])/_GRANULARITY).astype(int)
-    intensity = intensityModel(angle[m])*directionality(theta[m],phi[m])
+    intensity = intensityModel(angle[m])
+    if theta is not None:
+        intensity *= directionality(theta[m],phi[m])
 
     sample = np.array([np.sum(intensity[t==i]) for i in range(_steps)])
     #for i in range(_steps):

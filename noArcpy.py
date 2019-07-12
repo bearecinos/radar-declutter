@@ -129,12 +129,11 @@ def crop(ar):
     height = ar.shape[0]
     return ar[height-pointCoords[1]-_cropHeight/2:height-pointCoords[1]+_cropHeight/2,
                                 pointCoords[0]-_cropWidth/2:pointCoords[0]+_cropWidth/2]
-total = 0
-part = 0
+
 def generateMaps():
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data."""
     global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground,  _cropLeft, _cropLow, total, part
-    t = clock()
+    
     if not _SetupRun:
         Setup()
         
@@ -149,9 +148,8 @@ def generateMaps():
     _slope = crop(_fullSlope)
     _aspect = crop(_fullAspect)
 
-    c = clock()
     _vis = viewshed.viewshed(_heightmap,(_pointx-_cropLeft)/30.0, (_pointy-_cropLow)/30.0,_above_ground,_isOffset)
-    part += clock() - c
+    
     
     pointCoords = [int(_pointx-_cropLeft)/30,int(_pointy-_cropLow)/30]
     _save["visible"] = _vis
@@ -179,5 +177,5 @@ def generateMaps():
     # stores coordinates, z being against reference and elevation being above ground
     with open(_PATH+"\\x_y_z_elevation","w") as f:
         f.write(str(_pointx)+","+str(_pointy)+","+str(_elevation)+","+str(_above_ground))
-    total += clock()-t
+    
 

@@ -1,37 +1,5 @@
 noArcpy - spends 13.3 seconds to complete 'detailed'
 	- 11.8 seconds spent calling viewshed
 
-x = np.array([[1,3],[2,2]])
-y = np.resize(x,x.shape+(3,))
-y[:,:] = np.arange(1,4)
-o = np.ones(3)
-ys,xs = np.indices(x.shape,int)
-xxs = xs[:,:,np.newaxis]*o
-mask = y<x[xxs,yys]
-
-
-(_pointx-_cropLeft)/30.0
-105.07788999999951
->>> (_pointy-_cropLow)/30.0
-105.77883999999612
->>> _above_ground
-100.0
->>> _isOffset
-True
-
-
-touched = 371832 with unrefined new method
-357556 with old method, where is difference coming from?
-17301 with altered old method
-
-
-for i in range(1,int(np.amax(norm))):
-        m = (norm >= i+1)&(vis==1) # equivalent to a non-inclusive upper bound of int(norm)
-        # should this be the case? or should it just be >= i?
-        thisx = startx+i*dx[m]
-        thisy = starty+i*dy[m]
-        h = quadHeight(thisx,thisy)
-        w = h >= (i/norm[m])*endh[m]+(1.0-i/norm[m])*starth
-        touched += np.sum(w)
-        vis[[a[w] for a in np.where(m)]] = -1
-    return vis
+40% speedup with 50 points by running in parallel. But no progressbar.
+(Allowing setup to be called by each thread i.e. 4 times)
