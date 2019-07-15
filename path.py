@@ -1,17 +1,13 @@
 import stateless
-import progressbar
-from numpy import genfromtxt
+from progressbar import progressbar
+import numpy as np
 import xml.etree.cElementTree as ET
 import utm
 import multiprocessing as mp
 #https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
 
 def workerCall(args):
-    global pool
-    if stateless.generateMaps(*args):
-        pool.terminate()
-        return -1
-    return 0
+    return stateless.generateMaps(*args)
     
 def genPath(xs,ys,zs,name,isOffset=True):
     global pool
@@ -28,15 +24,16 @@ def genPath(xs,ys,zs,name,isOffset=True):
     m[[0,-1]] = 0
     m2 = np.roll(m,-1)
     m3 = np.roll(m,1)
-    direction[m] = 180.0/np.pi*(xs[m2]-xs[m3], ys[m2]-ys[m3]))+180.0
-
+    direction[m] = 180.0/np.pi*np.arctan2(xs[m2]-xs[m3], ys[m2]-ys[m3])+180.0
+    steps = len(xs)
     pool = mp.Pool(mp.cpu_count())
     data = [(x,y,name+"/point"+str(i),z,isOffset,angle) for x,y,i,z,angle in
-                            zip(xs,ys,np.arange(_steps),zs,direction)]
+                            zip(xs,ys,np.arange(steps),zs,direction)]
     fail = False
-    for r in progressbar(pool.imap_unordered(workerCall,data),max_value=_steps):
+    for r in progressbar(pool.imap_unordered(workerCall,data),max_value=steps):
         if r == -1:
             fail = True
+            break
     pool.close()
     if fail:
         print "Failed to generate one or more points using stateless.generateMaps"
@@ -58,7 +55,7 @@ def loadFromFile(filename,outName=None):
     try:
         with open(filename,"r") as f:
             isOffset = eval(f.readline())
-            data = genfromtxt(filename,delimiter=",",skip_header=1).swapaxes(0,1)
+            data = np.genfromtxt(filename,delimiter=",",skip_header=1).swapaxes(0,1)
     except IOError:
         print "Error in path.py, could not load file: "+filename
         print "Check filename correct and file in specified format."
@@ -81,17 +78,15 @@ def loadGpx(filename,outName=None):
         else:
             outName = n.text
     lats,lons,zs = [],[],[]
-    track = root.find("trk")
-    for seg in track.findall("trkseg"):
-	for pt in seg.findall("trkpt"):
-	    lats.append(pt.get("lat"))
-	    lons.append(pt.get("lon"))
-	    zs.append(pt.find("ele").text)
+    for pt in root.iter("trkpt"): # recursively searches for points in document order
+        lats.append(pt.get("lat"))
+        lons.append(pt.get("lon"))
+        zs.append(pt.find("ele").text)
     lats = np.array(lats,float)
     lons = np.array(lons,float)
     zs = np.array(zs,float)
     # Convert Lon/lat to x,y for coordinate system
     xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons) # says zone 45R?
     # x and y coordinates still appear correct though
-    return gePath(xs,ys,zs,outName,False)
+    return genPath(xs,ys,zs,outName,False)
     

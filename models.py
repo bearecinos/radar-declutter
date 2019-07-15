@@ -34,6 +34,8 @@ def Henyey_Green(g):
     return (1-g*g)*np.power(1+g,-3.0)
 def Minnaert(theta,k): 
     return np.power(np.cos(theta),2*k-2)
+def Min2(theta):
+    return Minnaert(theta,2) # as can't pass lambda to processor pool
 def raySpecular(theta,n=1):
     return np.power(np.maximum(0,np.cos(theta*2)),n) 
 
@@ -122,25 +124,27 @@ titles = ["Specular n=1"]
 def compare(name,adjusted=False,wave=GaussianDot()):
     returnData = []
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=(15,10))
+    plt.figure(figsize=(12,8))
     try:
         files = listdir(name)
     except OSError as e:
         fileError(e.filename)
+    files.sort(key=lambda x : int(x[5:])) # assumes 'point' prefix
     heights = []
     
     with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
         meta = f.read().split(",")
         x0 = float(meta[0])
         y0 = float(meta[1])
-        cells = int(np.ceil(np.sqrt(len(models))))*110
+    cells = int(np.ceil(np.sqrt(len(models))))*110
     for j in range(len(models)):
         plt.subplot(cells+j+1)
         out = np.full((len(files),_steps),0)
 
         # Bit to parallelize
+        # Note - must pass actual function, not a lambda expression
         p = mp.Pool(mp.cpu_count())
-        data = [(i,(name+"/"+files[i],models[j],wave)) for i in range(len(files))]
+        data = [(i,(name+"/"+files[i],models[j],wave)) for i in range(len(files))] 
         for i,h,ar in p.imap_unordered(worker,data):
             heights.append(h)
             out[i] = ar
@@ -168,6 +172,7 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         #plt.pcolormesh(np.arange(len(files)), ys, draw,cmap="Greys") # alternative cmap is "RdBu_r" where +ve = red
         plt.title(titles[j])
         plt.colorbar()
+        print "Plot complete: "+titles[j]
     plt.show()
     return returnData
 
@@ -180,7 +185,7 @@ def worker(args):
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=(15,10))
+    plt.figure(figsize=(12,8))
     ys = processSlice(filename,intensityModel=raySpecular,wave=wave)
     xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
     plt.plot(xs,ys,color="black")
@@ -194,6 +199,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
         files = listdir(name)
     except OSError as e:
         fileError(e.filename)
+    files.sort(key=lambda x : int(x[5:])) # assumes "point" prefix
     heights = []
     
     with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
@@ -203,8 +209,9 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     cells = int(np.ceil(np.sqrt(len(files))))*110
     
     out = np.full((len(files),_steps),0)
-    for i in progressbar.progressbar(range(len(files))):
+    for i in range(len(files)):
         filename = files[i]
+        #filename = "point"+str(i)
         with open(name+"/"+filename+"/x_y_z_elevation","r") as f:
             meta = f.read().split(",")
             heights.append(float(meta[2]))
@@ -229,7 +236,6 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
     plt.xlim(-m,m*len(files))
     plt.gca().axes.get_xaxis().set_visible(False)
-    print np.amax(abs(draw))
     plt.show()
     
 def showWave(wave=GaussianDot()):

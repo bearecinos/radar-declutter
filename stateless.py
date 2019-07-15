@@ -139,12 +139,13 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     vis = viewshed.viewshed(heightmap,(pointx-cropLeft)/30.0, (pointy-cropLow)/30.0,above_ground,isOffset)
     
     
-    pointCoords = [int(pointx-cropLeft)/30,int(pointy-cropLow)/30]
+    pointCoords = np.array([(pointx-cropLeft)/30.0,(pointy-cropLow)/30.0])
+    groundHeight = viewshed.quadHeight(heightmap,pointCoords[0],_cropHeight-1.0-pointCoords[1])
     if isOffset:
-        elevation = heightmap[_cropHeight-pointCoords[1],pointCoords[0]]+above_ground
+        elevation = groundHeight+above_ground
     else:
         elevation = above_ground
-        above_ground = elevation - heightmap[_cropHeight-pointCoords[1],pointCoords[0]]
+        above_ground = elevation - groundHeight
         isOffset = True
 
     distances = _makeDist2D(vis,pointx,pointy,cropLeft,cropLow)
@@ -169,5 +170,6 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     
 if __name__=="__main__":
     if Setup():
-        return -1
-    print generateMaps(469900.0, 3095000.0,"point1")
+        print "Failed"
+    else:
+        generateMaps(469900.0, 3095000.0,"point1")

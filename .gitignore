@@ -4,3 +4,6 @@ point1/
 detailed/
 simple/
 *.pyc
+demoData/demoPath/
+demoData/point/
+demoData/shortPath/
