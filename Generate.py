@@ -41,18 +41,20 @@ _CellSize = 30.0
 
 def Setup():
     """Performs most of the initialisation needed by arcpy."""
-    global _raster, _aspectRaster, _slopeRaster, _SetupRun, t1
-    t = clock()
-   
-    _raster = arcpy.Raster("default.gdb/srtm30_dem_utm45n_crop")
-    _slopeRaster = arcpy.Raster("default.gdb/Slope_srtm")
-    _aspectRaster = arcpy.Raster("default.gdb/Aspect_srtm")
-
-    t1 = clock() - t
-  
-
+    global _raster, _aspectRaster, _slopeRaster, _SetupRun
+    try:
+        _raster = arcpy.Raster("default.gdb/srtm30_dem_utm45n_crop")
+        _slopeRaster = arcpy.Raster("default.gdb/Slope_srtm")
+        _aspectRaster = arcpy.Raster("default.gdb/Aspect_srtm")
+    except RuntimeError as e:
+        if "ERROR 000732" in e.message:
+            print "Error in Generate.py, could not load one of the input rasters."
+            print "Please check folder default.gdb exists."
+            print "Must contain srtm30_dem_utm45n_crop, Slope_srtm, Aspect_srtm."
+            print "This can be checked by looking at folder in arcMap."
+            return -1
     _SetupRun = True
-
+    return 0
 
 # creates npArray of compass direction to all visible points
 def _getDirections():
@@ -119,15 +121,11 @@ def generateMaps():
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data."""
     global _vis,_distances,_slope,_aspect,_heightmap, _elevation, _isOffset, _above_ground, start, segment, _cropLeft, _cropLow
     if not _SetupRun:
-        Setup()
-        
+        if Setup():
+            return -1        
     
     makedirs(_PATH)
 
-    
-    ####################################################################################################
-    #### over 70% of time spent in this segment
-    
     rasterData = _raster.extent
     low = rasterData.YMin
     left = rasterData.XMin
@@ -156,8 +154,6 @@ def generateMaps():
 
     # array[height-coord-width/2:height-coord+width/2,coord-width/2:coord+width/2]
 
-    
-    ###################################################################################################
 
 
     _save["visible"] = _vis
@@ -191,10 +187,13 @@ def generateMaps():
     with open(_PATH+"/x_y_z_elevation","w") as f:
         f.write(str(_pointx)+","+str(_pointy)+","+str(_elevation)+","+str(_above_ground))
 
+    return 0
+
 def storeRasters(): # Reason this file hasn't been deleted yet
     """Save full rasters used by arcpy as numpy arrays to avoid arcpy use in future"""
     if not _SetupRun:
-        Setup()
+        if Setup():
+            return -1
     height = arcpy.RasterToNumPyArray(_raster)
     aspect = arcpy.RasterToNumPyArray(_aspectRaster)
     slope = arcpy.RasterToNumPyArray(_slopeRaster)
@@ -205,5 +204,6 @@ def storeRasters(): # Reason this file hasn't been deleted yet
     np.savez_compressed("maps.npz",heightmap=height,aspect=aspect,slope=slope)
     with open("info.txt","w") as f:
         f.write(line)
+    return 0
     
 

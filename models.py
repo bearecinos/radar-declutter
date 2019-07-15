@@ -7,6 +7,9 @@ from os import listdir
 from scipy import signal
 import multiprocessing as mp
 
+# plt.ion makes plots interactive (nonblocking) but may harm performance
+# and/or stability
+
 _MAXDIST = 30*105.0
 _GRANULARITY = 1e-8 # 10ns
 _SPACE_GRANULARITY = _GRANULARITY*3e8
@@ -29,7 +32,7 @@ def Henyey_Green(g):
     # 1 + g^2 + 2*g = (1+g)^2
     # just constant per surface as incidence angle irrelevant
     return (1-g*g)*np.power(1+g,-3.0)
-def Minnart(theta,k): 
+def Minnaert(theta,k): 
     return np.power(np.cos(theta),2*k-2)
 def raySpecular(theta,n=1):
     return np.power(np.maximum(0,np.cos(theta*2)),n) 
@@ -77,10 +80,15 @@ class IDLWave:
 def directionality(theta,phi):
     # IDL model appeared to use sin(theta)**8
     # sin(3*theta) term adds side lobes of lesser intensity    
-    return np.sin(theta)**2*np.sin(3*theta)**2
+    #return np.sin(theta)**2*np.sin(3*theta)**2
+    return np.sin(phi)**4
 
 def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
-    arrays = np.load(filename+"/arrays.npz")
+    try:
+        arrays = np.load(filename+"/arrays.npz")
+    except IOError:
+        print "Error in models.py, could not load file "+filename+"/arrays.npz"
+        print "Note, if trying to process a directory of points, must be no other files/directories in directory."
     visible = arrays["visible"]
     distance = arrays["distance"]
     angle = arrays["incidence"]
@@ -105,17 +113,20 @@ def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
         w[j] = wave.amplitude((j+low)*_GRANULARITY)
     return np.convolve(sample,w,"same")
 
-#models = [lambertian,lambda x : Minnart(x,2), raySpecular, lambda x : raySpecular(x,2)]
-#titles = ["diffuse", "Minnart k=2", "Specular n=1", "Specular n=2"]
+#models = [lambertian,lambda x : Minnaert(x,2), raySpecular, lambda x : raySpecular(x,2)]
+#titles = ["diffuse", "Minnaert k=2", "Specular n=1", "Specular n=2"]
 models = [raySpecular]
 titles = ["Specular n=1"]
-#models = [lambda x : Minnart(x,3)]
+#models = [lambda x : Minnart(x,3)] 
 #titles = ["IDL method"]
 def compare(name,adjusted=False,wave=GaussianDot()):
     returnData = []
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(15,10))
-    files = listdir(name)
+    try:
+        files = listdir(name)
+    except OSError as e:
+        fileError(e.filename)
     heights = []
     
     with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
@@ -179,7 +190,10 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
 def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(20,10))
-    files = listdir(name)
+    try:
+        files = listdir(name)
+    except OSError as e:
+        fileError(e.filename)
     heights = []
     
     with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
@@ -223,4 +237,21 @@ def showWave(wave=GaussianDot()):
     f = np.vectorize(wave.amplitude)
     plt.plot(x,f(x))
     plt.show()
+def showDirectionality():
+    import mpl_toolkits.mplot3d.axes3d as axes3d
+    theta, phi = np.linspace(0, 2 * np.pi, 90), np.linspace(0, np.pi, 45)
+    theta, phi = np.meshgrid(theta,phi)
+    r = directionality(theta,phi)
+    X = r * np.sin(phi) * np.cos(theta)
+    Y = r * np.sin(phi) * np.sin(theta)
+    Z = r * np.cos(phi)
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1, projection='3d')
+    ax.plot([0,0], [0,0], [-0.4,0.4],linewidth=2.0)
+    ax.plot_surface(X, Y, Z, rstride=1, cstride=1,antialiased=False,cmap=plt.get_cmap('jet'),alpha=0.5)
+    plt.show()
 
+def fileError(f):
+    print "Error in models.py, could not find file: "+f
+    print "Please check path/filename entered correct and data exists"
+    return -1

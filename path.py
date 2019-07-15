@@ -7,9 +7,14 @@ import multiprocessing as mp
 #https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
 
 def workerCall(args):
-    stateless.generateMaps(*args)
+    global pool
+    if stateless.generateMaps(*args):
+        pool.terminate()
+        return -1
+    return 0
     
 def genPath(xs,ys,zs,name,isOffset=True):
+    global pool
     """Generates path data for the specified points, including antenna orientation data.
     Parameters:
     xs float array : array of x coordinates of path.
@@ -34,7 +39,7 @@ def genPath(xs,ys,zs,name,isOffset=True):
             fail = True
     pool.close()
     if fail:
-        print "Failed, setup didn't run correctly. Likely issue with state copying between processes"
+        print "Failed to generate one or more points using stateless.generateMaps"
         return -1
     return 0     
     
@@ -50,18 +55,29 @@ def loadFromFile(filename,outName=None):
     Each next line - 'x,y,z' comma separated coordinates of next point along path."""
     if outName is None:
         outName = filename
-    with open(filename,"r") as f:
-        isOffset = eval(f.readline())
-    data = genfromtxt(filename,delimiter=",",skip_header=1).swapaxes(0,1)
-    return isOffset
-    genPath(data[0],data[1],data[2],outName,isOffset)
+    try:
+        with open(filename,"r") as f:
+            isOffset = eval(f.readline())
+            data = genfromtxt(filename,delimiter=",",skip_header=1).swapaxes(0,1)
+    except IOError:
+        print "Error in path.py, could not load file: "+filename
+        print "Check filename correct and file in specified format."
+        return -1
+    return genPath(data[0],data[1],data[2],outName,isOffset)
 
 def loadGpx(filename,outName=None):
-    root = ET.parse(filename).getroot()
+    try:
+        root = ET.parse(filename).getroot()
+    except IOError:
+        print "Error in path.py, could not load file: "+filename
+        print "Check filename correct and data exists in gpx format."
+        return -1
     if outName is None:
         n = root.find("name")
         if n is None:
-            outName = filename[:-4] # removes .xml ending
+            outName = filename
+            if ".xml" in filename:
+                outName = outName[:-4] # removes .xml ending
         else:
             outName = n.text
     lats,lons,zs = [],[],[]
@@ -77,5 +93,5 @@ def loadGpx(filename,outName=None):
     # Convert Lon/lat to x,y for coordinate system
     xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons) # says zone 45R?
     # x and y coordinates still appear correct though
-    gePath(xs,ys,zs,outName,False)
+    return gePath(xs,ys,zs,outName,False)
     
