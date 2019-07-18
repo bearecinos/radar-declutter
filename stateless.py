@@ -122,17 +122,15 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     
     # rounds down the corner
     pointCoords = [int((pointx-left)/_CellSize),int((pointy-low)/_CellSize)]
-    #cropLeft = left + (pointCoords[0]-_cropSize/2)*_CellSize # what if grid too small? 
-    #cropLow = low + (pointCoords[1]-_cropSize/2)*_CellSize
     
     height = _fullHeightmap.shape[0]
-    # stop at edges, end up with point no longer in center - affects coordinates of point in grid
-    # in y direction, lower index is greater y position
+    # stop at edges, end up with point no longer in center - affects coordinates of point in grid.
+    # in y direction lower index is greater y position
     upper, lower = max(0,height-pointCoords[1]-_cropSize/2), min(height,height-pointCoords[1]+_cropSize/2)
     l, r = max(0,pointCoords[0]-_cropSize/2), min(height,pointCoords[0]+_cropSize/2)
 
     cropLeft = left + l*_CellSize
-    cropLow = low + (height-lower)*_CellSize
+    cropLow = low + (height-1-lower)*_CellSize
     
     heightmap = _fullHeightmap[upper:lower,l:r]
     slope = _fullSlope[upper:lower,l:r]
@@ -161,7 +159,6 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     else:
         elevation = above_ground
         above_ground = elevation - groundHeight
-        isOffset = True
 
     distances = _makeDist2D(vis,pointx,pointy,cropLeft,cropLow)
     directions = _getDirections(vis,pointx,pointy,cropLeft,cropLow)
