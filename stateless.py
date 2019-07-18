@@ -15,7 +15,7 @@ from time import clock
 #_cropWidth, _cropHeight = 210, 210
 _RANGE = 3000.0
 _SetupRun = False
-_NODATA = -100000
+_NODATA = np.nan
 
 
 def Setup(maps="maps.npz",info="info.txt"): 
@@ -140,7 +140,7 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     pointCoords = np.array([(pointx-cropLeft)/_CellSize,(pointy-cropLow)/_CellSize])
     groundHeight = viewshed.quadHeight(heightmap,np.array([pointCoords[0]]),np.array([cropHeight-1.0-pointCoords[1]]))
 
-    if groundHeight == _NODATA:
+    if np.isnan(groundHeight): # Assumes use of NaN, have to use different checks to regular values
         # not above mapped ground so don't generate anything
         # could still generate if not isOffset but still wouldn't have full map
         return 0

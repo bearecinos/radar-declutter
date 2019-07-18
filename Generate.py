@@ -2,15 +2,15 @@ import arcpy
 import numpy as np
 
 _SetupRun = False
-_CellSize = 30.0
 
-def Setup():
+def Setup(rasterName = "default.gdb/srtm30_dem_utm45n_crop", slopeName = "default.gdb/Slope_srtm",
+          aspectName = "default.gdb/Aspect_srtm"):
     """Performs most of the initialisation needed by arcpy."""
     global _raster, _aspectRaster, _slopeRaster, _SetupRun, _CellSize
     try:
-        _raster = arcpy.Raster("default.gdb/srtm30_dem_utm45n_crop")
-        _slopeRaster = arcpy.Raster("default.gdb/Slope_srtm")
-        _aspectRaster = arcpy.Raster("default.gdb/Aspect_srtm")
+        _raster = arcpy.Raster(rasterName)
+        _slopeRaster = arcpy.Raster(slopeName)
+        _aspectRaster = arcpy.Raster(aspectName)
     except RuntimeError as e:
         if "ERROR 000732" in e.message:
             print "Error in Generate.py, could not load one of the input rasters."

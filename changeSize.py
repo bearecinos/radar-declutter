@@ -1,6 +1,8 @@
 import numpy as np
 
+
 def resize(cellsize): # keeps bottom right corner - a[-1:0] unchanged
+    """Changes size of an existing numpy array"""
     with open("info.txt","r") as f:
         line = f.read().split(",")
         originalSize = float(line[-1])

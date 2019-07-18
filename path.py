@@ -6,6 +6,7 @@ import utm
 import multiprocessing as mp
 #https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
 
+
 def workerCall(args):
     return stateless.generateMaps(*args)
     
@@ -40,28 +41,6 @@ def genPath(xs,ys,zs,name,isOffset=True):
         return -1
     return 0     
     
-# format: 1st line is "True"/"False" for isOffset
-# each other line is x,y,z
-def loadFromFile(filename,outName=None):
-    """Reads a file of path coordinates and generates the required data for those points.
-    Parameters:
-    filename string : path of file to read coordinates from.
-    outName string (optional) : name of folder to store generated data in. Defaults to same path as filename if not given.
-    File format:
-    First line - 'True' or 'False' to indicate whether z-coordinates are altitude or offset from surface.
-    Each next line - 'x,y,z' comma separated coordinates of next point along path."""
-    if outName is None:
-        outName = filename
-    try:
-        with open(filename,"r") as f:
-            isOffset = eval(f.readline())
-            data = np.genfromtxt(filename,delimiter=",",skip_header=1).swapaxes(0,1)
-    except IOError:
-        print "Error in path.py, could not load file: "+filename
-        print "Check filename correct and file in specified format."
-        return -1
-    return genPath(data[0],data[1],data[2],outName,isOffset)
-
 # only display from crop[0] to end-crop[1] e.g. [250,220]
 def loadGpx(filename,crop=[0,0],outName=None):
     try:
@@ -165,7 +144,9 @@ def showOnSurface(filename,crop=[0,0],extend=10):
         X,Y = X[::factor,::factor], Y[::factor,::factor]
     X = left + X*cellSize
     Y = low + Y*cellSize
-    heightmap[heightmap < -50000] = np.nan
+
+    # replaced noData value with nan so no longer needed
+    #heightmap[heightmap < -50000] = np.nan
     
     my_col = cm.jet((heightmap-np.nanmin(heightmap))/(np.nanmax(heightmap)-np.nanmin(heightmap)))
     fig = plt.figure()
@@ -174,6 +155,8 @@ def showOnSurface(filename,crop=[0,0],extend=10):
     ax.plot(xs,ys,zs)
     plt.show()
 
+# Assumes NaN is undefined value, otherwise need to change equality test
+# (Can't use == for NaNs, need np.isnan(...) instead)
 def checkValid(filename,crop = [0,0]):
     """Indicate if any of the map is undefined within 3km (current fixed range) of a point on the path.
     Also highlights if the map is undefined directly beneath any points on the path."""
