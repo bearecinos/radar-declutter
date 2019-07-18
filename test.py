@@ -1,13 +1,13 @@
 from os import remove, path
 from shutil import rmtree
 import numpy as np
-from progressbar import progressbar
+from progress import progress
 import stateless
 import multiprocessing as mp
 
 _startX, _startY = 470305.0, 3094800.0
 _endX, _endY = 470038.0, 3095590.0
-_steps = 10
+_steps = 20
 _filename = "simple"
 
 # wallPath: (481990, 3085940) to (480892, 3087233)
@@ -17,7 +17,7 @@ def setDetailed():
     """Sets the pathname to 'detailed' and number of samples to 50."""
     global _filename, _steps
     _filename = "detailed"
-    _steps = 50
+    _steps = 80
 
 def setPath(startX,startY,endX,endY,steps,name):
     """Select the endpoints of a straight path, the resolution of the path, and its name.
@@ -42,7 +42,7 @@ def generateAll():
     with open("tmp","w") as f:
         f.write(str(_startX)+","+str(_startY)+","+str(_endX)+","+str(_endY)+","+str(_steps)+","+_filename+"\n")
     stateless.Setup()
-    for i in progressbar(range(_steps)):
+    for i in progress(range(_steps)):
         stateless.generateMaps(xs[i],ys[i],_filename+"/point"+str(i))
         with open("tmp","a") as f:
             f.write(str(i)+"\n")
@@ -58,7 +58,7 @@ def parallelAll():
     pool = mp.Pool(mp.cpu_count())
     data = [(x,y,_filename+"/point"+str(i)) for x,y,i in zip(xs,ys,np.arange(_steps))]
     fail = False
-    for r in progressbar(pool.imap_unordered(workerCall,data),max_value=_steps):
+    for r in progress(pool.imap_unordered(workerCall,data),_steps):
         if r == -1:
             fail = True
     pool.close()
@@ -90,7 +90,7 @@ def resume():
         xs = np.linspace(_startX,_endX,_steps)
         ys = np.linspace(_startY,_endY,_steps)
         stateless.Setup()
-        for i in progressbar(range(done,_steps),min_value=done,max_value=_steps):
+        for i in progress(range(done,_steps),_steps-done):
             stateless.generateMaps(xs[i],ys[i],_filename+"/point"+str(i))
             with open("tmp","a") as f:
                 f.write(str(i)+"\n")
