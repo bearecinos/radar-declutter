@@ -1,6 +1,6 @@
 import sys, time
 def progress(iterable,steps=None):
-    start = time.clock()
+    start = time.time()
     if steps is None:
         steps = len(iterable)
     width = 70
@@ -13,7 +13,7 @@ def progress(iterable,steps=None):
     for event in iterable:
         yield(event)
         prog += 1
-        t = int(time.clock()-start)
+        t = int(time.time()-start)
         sec = str(t%60)
         rest = len("{0}% ({1} of {2}) || Time: ".format(int(prog/steps*100),int(prog),steps))
         block = int(round((width-rest)*prog/steps))

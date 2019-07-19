@@ -5,6 +5,7 @@ _NODATA = np.nan
 
 # should ignore points outside grid, and any point interpolating a NODATA value
 # should also be ignored
+# expects points in grid coordinates
 def quadHeight(grid,x,y): # bi-quadratic interpolation of height
     res = np.full_like(x,_NODATA,float) # can mask points out of grid
     h,w = grid.shape

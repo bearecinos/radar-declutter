@@ -18,7 +18,7 @@ def Setup(rasterName = "default.gdb/srtm30_dem_utm45n_crop", slopeName = "defaul
             print "Must contain srtm30_dem_utm45n_crop, Slope_srtm, Aspect_srtm."
             print "This can be checked by looking at folder in arcMap."
             return -1
-    _CellSize = = float(arcpy.GetRasterProperties_management(_raster,"CELLSIZEX").getOutput(0))
+    _CellSize = float(arcpy.GetRasterProperties_management(_raster,"CELLSIZEX").getOutput(0))
     _SetupRun = True
     return 0
 

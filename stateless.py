@@ -69,8 +69,7 @@ def _makeIncidence(vis,elevation,heightmap,trueDist,distances,slope,aspect,direc
     cosTheta = (elevation-heightmap[m])/trueDist[m]
     sinTheta = distances[m]/trueDist[m]
     cosAng = cosTheta * np.cos(math.pi/180.0*slope[m]) - sinTheta * np.sin(np.pi/180.0*slope[m]) * np.cos(math.pi/180.0*(directions[m]-aspect[m]))
-    
-    incidence[m] = np.arccos(cosAng) # if errors - caused by FP errors in cosAng
+    incidence[m] = np.arccos(cosAng) # if errors - caused by FP errors in cosAng or NaN values
     return incidence
 
 
