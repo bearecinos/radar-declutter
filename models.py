@@ -6,6 +6,7 @@ import matplotlib.colors as colors
 from os import listdir
 from scipy import signal
 import multiprocessing as mp
+from progress import progress
 
 # plt.ion makes plots interactive (nonblocking) but may harm performance
 # and/or stability
@@ -16,6 +17,8 @@ _SPACE_GRANULARITY = _GRANULARITY*3e8
 _MAXTIME = 2*_MAXDIST/3e8
 
 _steps = int(_MAXTIME/_GRANULARITY)
+
+_MetaFilePath = "/x_y_z"
 
 def _time(distance):
     """Get the time for a wave to return to the radar after reflecting off a
@@ -149,7 +152,7 @@ def compare(name,adjusted=False,wave=GaussianDot()):
     files.sort(key=lambda x : int(x[5:])) # assumes 'point' prefix
     heights = []
     
-    with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
+    with open(name+"/"+files[0]+_MetaFilePath,"r") as f:
         meta = f.read().split(",")
         x0 = float(meta[0])
         y0 = float(meta[1])
@@ -162,7 +165,7 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         # Note - must pass actual function, not a lambda expression
         p = mp.Pool(mp.cpu_count())
         data = [(i,(name+"/"+files[i],models[j],wave)) for i in range(len(files))] 
-        for i,h,ar in p.imap_unordered(worker,data):
+        for i,h,ar in progress(p.imap_unordered(worker,data),len(files)):
             heights.append(h)
             out[i] = ar
 
@@ -198,7 +201,7 @@ def compare(name,adjusted=False,wave=GaussianDot()):
 def worker(args):
     i = args[0]
     args = args[1]
-    with open(args[0]+"/x_y_z_elevation","r") as f:
+    with open(args[0]+_MetaFilePath,"r") as f:
         h = float(f.read().split(",")[2])
     return i, h, processSlice(*args) 
 
@@ -221,7 +224,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     files.sort(key=lambda x : int(x[5:])) # assumes "point" prefix
     heights = []
     
-    with open(name+"/"+files[0]+"/x_y_z_elevation","r") as f:
+    with open(name+"/"+files[0]+"/x_y_z","r") as f:
         meta = f.read().split(",")
         x0 = float(meta[0])
         y0 = float(meta[1])
@@ -231,7 +234,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     for i in range(len(files)):
         filename = files[i]
         #filename = "point"+str(i)
-        with open(name+"/"+filename+"/x_y_z_elevation","r") as f:
+        with open(name+"/"+filename+_MetaFilePath,"r") as f:
             meta = f.read().split(",")
             heights.append(float(meta[2]))
         out[i] = processSlice(name+"/"+filename,intensityModel,wave)  

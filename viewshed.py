@@ -7,18 +7,15 @@ _NODATA = np.nan
 # should also be ignored
 # expects points in grid coordinates
 def quadHeight(grid,x,y): # bi-quadratic interpolation of height
-    res = np.full_like(x,_NODATA,float) # can mask points out of grid
+    res = np.full_like(x,_NODATA,float) 
     h,w = grid.shape
     m = (x >= 0) & (y >= 0) & (x < w-1) & (y < h-1) # valid points mask
-
-    # later use nan in grid
     x,y = x[m], y[m]
         
     cornerx = x.astype(int)
     cornery = y.astype(int)
     # output NODATA if any cell to interpolate between is already NODATA
-    # use np.nan in the future
-    # ASSUMES USE OF NaN
+    # assumes use of NaN
     w = ~(np.isnan(grid[cornery,cornerx]) | np.isnan(grid[cornery,cornerx+1]) |
           np.isnan(grid[cornery+1,cornerx]) | np.isnan(grid[cornery+1,cornerx+1]))
 ##    w = ((grid[cornery,cornerx] != _NODATA) & (grid[cornery+1,cornerx] != _NODATA) &
@@ -72,26 +69,21 @@ def visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
     return vis
 
 # y passed in world coordinates so grid coordinates are height-1-y
-def viewshed(grid,pointx,pointy,elevation=100,isOffset=True,maxRange=3000,gridsize=30.0,stepSize=None):
+# assumes point actually inside grid (checked by call to quadheight to get groundHeight first in stateless.py)
+def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,maxRange=3000,gridsize=30.0,stepSize=None):
     gheight, gwidth = grid.shape
     
     pointy = gheight - pointy - 1
     
     view = np.full_like(grid,0,int)
-    if pointx < 0 or pointy < 0 or pointx > gwidth - 1 or pointy > gheight - 1:
-        return view # point off grid, can't tell what is visible or not
-    maxSquaredCells = (maxRange/float(gridsize))**2
 
     ys, xs = np.indices(grid.shape,float)
-
-    squareDist = (xs-pointx)**2+(ys-pointy)**2
-    inRange = (squareDist < maxSquaredCells) &  ~np.isnan(grid) # ignore noData points, assumes NaN used
-
+    
     if stepSize is None:
         stepSize = gridsize
     stepSize /= gridsize # step in grid coordinates
     
-    view[inRange] = visible(grid,pointx,pointy,xs[inRange],ys[inRange],elevation,isOffset,stepSize)
+    view[mask] = visible(grid,pointx,pointy,xs[mask],ys[mask],elevation,isOffset,stepSize)
     
     return view
   

@@ -115,6 +115,8 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     isOffset boolean (optional) : Indicates the given 'above_ground' is relative to the ground. Default = True.
     antennaDir float (optional) : The direction the radar was facing in degrees. By default, not used.    
     """
+    global total, part, part2 ##
+    start = clock() ##
     if not _SetupRun:
         if Setup():
             return -1
@@ -137,11 +139,11 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     cropHeight,cropWidth = heightmap.shape
     
     pointCoords = np.array([(pointx-cropLeft)/_CellSize,(pointy-cropLow)/_CellSize])
-    groundHeight = viewshed.quadHeight(heightmap,np.array([pointCoords[0]]),np.array([cropHeight-1.0-pointCoords[1]]))
+    groundHeight = viewshed.quadHeight(heightmap,np.array([pointCoords[0]]),np.array([cropHeight-1.0-pointCoords[1]]))[0]
 
     if np.isnan(groundHeight): # Assumes use of NaN, have to use different checks to regular values
         # not above mapped ground so don't generate anything
-        # could still generate if not isOffset but still wouldn't have full map
+        # could still generate if not isOffset but wouldn't have sensible full map
         return 0
 
     try:
@@ -150,21 +152,31 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
         print "Error in stateless.py, couldn't make directory, likely already exists."
         print "Please rename the direcory '"+path+"' or use a different path."
         return -1
-  
-    vis = viewshed.viewshed(heightmap,(pointx-cropLeft)/_CellSize, (pointy-cropLow)/_CellSize,above_ground,isOffset,gridsize=_CellSize)
     
     if isOffset:
         elevation = groundHeight+above_ground
     else:
         elevation = above_ground
-        above_ground = elevation - groundHeight
 
-    distances = _makeDist2D(vis,pointx,pointy,cropLeft,cropLow)
-    directions = _getDirections(vis,pointx,pointy,cropLeft,cropLow)
+    ys, xs = np.indices(heightmap.shape,float)
+    ys = cropHeight - 1 - ys
+    xs = cropLeft + xs*_CellSize
+    ys = cropLow + ys*_CellSize
+    mask = (((xs-pointx)**2 + (ys-pointy)**2) <= _RANGE**2) & ~np.isnan(heightmap) ## leave noData points
 
-    trueDist = _makeDistance(vis,distances,heightmap,elevation)
+    distances = _makeDist2D(mask,pointx,pointy,cropLeft,cropLow)
+    directions = _getDirections(mask,pointx,pointy,cropLeft,cropLow)
+
+    trueDist = _makeDistance(mask,distances,heightmap,elevation)
     
-    incidence = _makeIncidence(vis,elevation,heightmap,trueDist,distances,slope,aspect,directions)
+    incidence = _makeIncidence(mask,elevation,heightmap,trueDist,distances,slope,aspect,directions)
+    mask = incidence <= np.pi/2 # font facing cells only
+
+    
+    vis = viewshed.viewshed(heightmap,(pointx-cropLeft)/_CellSize, (pointy-cropLow)/_CellSize,mask,
+                            elevation,False,gridsize=_CellSize)
+
+    
 
     if antennaDir is not None:
         theta, phi = _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDir)
@@ -175,13 +187,19 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
                             incidence=incidence)   
 
     # stores coordinates, z being against reference and elevation being above ground
-    with open(path+"/x_y_z_elevation","w") as f:
-        f.write(str(pointx)+","+str(pointy)+","+str(elevation)+","+str(above_ground))
+    # Change: elevation above ground never used so being removed
+    with open(path+"/x_y_z","w") as f:
+        f.write(str(pointx)+","+str(pointy)+","+str(elevation))
     return 0
     
 if __name__=="__main__" and False:
     if Setup():
         print "Failed"
     else:
-        import matplotlib.pyplot as plt
-        generateMaps(469900.0, 3095000.0,"point1")
+        #import matplotlib.pyplot as plt
+        t = clock()
+        for i in range(100):
+           if generateMaps(469900.0, 3095000.0,"timing/point{0}".format(i)):
+               break
+        print clock()  - t
+        input()
