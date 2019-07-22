@@ -72,6 +72,7 @@ def _makeAspect(raster):
 # These 3 methods exist in case there are issues with the amount of
 # memory needed to create and store all 3 at once using storeAll().
 def justAspect(source,sampleLat,sampleLon,cellSize=None):
+    arcpy.env.overwriteOutput = True
     raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
     arcpy.env.snapRater = heightmap
     corner = raster.extent.lowerLeft
@@ -88,6 +89,7 @@ def justAspect(source,sampleLat,sampleLon,cellSize=None):
     makeInfo(corner.X,corner.Y,cellSize)
 
 def justSlope(source,sampleLat,sampleLon,cellSize=None):
+    arcpy.env.overwriteOutput = True
     raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
     arcpy.env.snapRater = heightmap
     corner = raster.extent.lowerLeft
@@ -104,6 +106,7 @@ def justSlope(source,sampleLat,sampleLon,cellSize=None):
     makeInfo(corner.X,corner.Y,cellSize)
 
 def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
+    arcpy.env.overwriteOutput = True
     raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
     corner = raster.extent.lowerLeft
     cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
@@ -143,6 +146,7 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
             keeps the original size. Must be a multiple of the original size.
         outDir string (optional) : the directory to place projected or resampled rasters in
             if created. By default, will be placed in current directory."""
+    arcpy.env.overwriteOutput = True
     arcpy.env.workspace = os.getcwd()
     # projected and resampled if required
     raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
@@ -163,6 +167,7 @@ def rastersToNumpy(heightmap,aspect=None,slope=None):
     Note: This expects the strings for the names of the rasters and will not do any resampling etc.
     Sometimes get errors trying to run tools on projected/resampled rasters or accessing environment.
     If so, may have to run through steps manually or call other functions e.g. 'justSlope'."""
+    arcpy.env.overwriteOutput = True
     arcpy.env.workspace = os.getcwd()
     heightmap = loadRaster(heightmap)
     arcpy.env.snapRater = heightmap
