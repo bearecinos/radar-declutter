@@ -20,4 +20,4 @@ def project(source, systemName = default, saveAs = "projected"):
     arcpy.env.workspace = os.getcwd()
     # cubic vs bilinear?
     arcpy.ProjectRaster_management(source,saveAs,sr,"CUBIC")
-    return arcpy.Raster("projected")
+    return arcpy.Raster(saveAs)
