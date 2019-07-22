@@ -170,12 +170,12 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     trueDist = _makeDistance(mask,distances,heightmap,elevation)
     
     incidence = _makeIncidence(mask,elevation,heightmap,trueDist,distances,slope,aspect,directions)
-    mask = incidence <= np.pi/2 # font facing cells only
+    mask = incidence <= np.pi/2 # font facing cells only, also ignores NaNs
 
     
     vis = viewshed.viewshed(heightmap,(pointx-cropLeft)/_CellSize, (pointy-cropLow)/_CellSize,mask,
                             elevation,False,gridsize=_CellSize)
-
+    
     
 
     if antennaDir is not None:
@@ -192,14 +192,15 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
         f.write(str(pointx)+","+str(pointy)+","+str(elevation))
     return 0
     
-if __name__=="__main__" and False:
+if __name__=="__main__":
     if Setup():
         print "Failed"
     else:
         #import matplotlib.pyplot as plt
         t = clock()
-        for i in range(100):
-           if generateMaps(469900.0, 3095000.0,"timing/point{0}".format(i)):
-               break
+        generateMaps(469900.0, 3095000.0,"timing/point0")
+        # For new data:
+        # x,y =  436137.27838013606, 8757751.77326004
+        # elevation = 526.0
         print clock()  - t
         input()

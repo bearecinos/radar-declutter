@@ -1,11 +1,8 @@
 import numpy as np
-
+import math
 
 _NODATA = np.nan
 
-# should ignore points outside grid, and any point interpolating a NODATA value
-# should also be ignored
-# expects points in grid coordinates
 def quadHeight(grid,x,y): # bi-quadratic interpolation of height
     res = np.full_like(x,_NODATA,float) 
     h,w = grid.shape
@@ -14,23 +11,15 @@ def quadHeight(grid,x,y): # bi-quadratic interpolation of height
         
     cornerx = x.astype(int)
     cornery = y.astype(int)
-    # output NODATA if any cell to interpolate between is already NODATA
-    # assumes use of NaN
-    w = ~(np.isnan(grid[cornery,cornerx]) | np.isnan(grid[cornery,cornerx+1]) |
-          np.isnan(grid[cornery+1,cornerx]) | np.isnan(grid[cornery+1,cornerx+1]))
-##    w = ((grid[cornery,cornerx] != _NODATA) & (grid[cornery+1,cornerx] != _NODATA) &
-##        (grid[cornery,cornerx+1] != _NODATA) & (grid[cornery+1,cornerx+1] != _NODATA))
 
-    x,y = x[w], y[w]
-    cornerx,cornery = cornerx[w], cornery[w]
-    
+    # any NaN values are carried through and picked up in calling function    
     dx = x-cornerx
-    tx = dx**2+(1-dx)**2
+    tx = dx*dx+(1-dx)*(1-dx)
     dy = y-cornery
-    ty = dy**2+(1-dy)**2
-    a = (dx**2*grid[cornery,cornerx+1] + (1-dx)**2*grid[cornery,cornerx])/tx
-    b = (dx**2*grid[cornery+1,cornerx+1] + (1-dx)**2*grid[cornery+1,cornerx])/tx
-    res[tuple(mask[w] for mask in np.where(m))] = (dy**2*b + (1-dy)**2*a)/ty
+    ty = dy*dy+(1-dy)*(1-dy)
+    a = (dx*dx*grid[cornery,cornerx+1] + (1-dx)*(1-dx)*grid[cornery,cornerx])/tx
+    b = (dx*dx*grid[cornery+1,cornerx+1] + (1-dx)*(1-dx)*grid[cornery+1,cornerx])/tx
+    res[m] = (dy*dy*b + (1-dy)*(1-dy)*a)/ty
     return res
 
 def visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
@@ -38,39 +27,42 @@ def visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
     if len(x) == 0:
         return vis # else get error when attempting to call np.amax on 0 length array
     endh = quadHeight(grid,x,y)
+    vis[np.isnan(endh)] = 0 # won't be detected later as thish will be NaN
     if isOffset:
         starth = quadHeight(grid,np.array([startx]),np.array([starty]))+elevation
     else:
         starth = elevation
     dx = x-startx
     dy = y-starty
-    norm = (dx**2+dy**2)**0.5
+    norm = np.hypot(dx,dy)
+    #norm = (dx**2+dy**2)**0.5
 
-    # ignores divide by 0 cases in coming loop
-    norm[norm==0] = 0.1
+    # avoids divide by 0 cases in coming loop
+    norm[norm==0] = stepSize/2.0
     
-    dx /= norm
-    dy /= norm
-    dh = (endh-starth)/norm
-    # more fine grain steps?
+    dx *= stepSize/norm
+    dy *= stepSize/norm
+    dh = (endh-starth)*stepSize/norm
 
     thisx = startx
     thisy = starty
-    thish = np.full_like(norm,starth)
+    thish = starth
     for i in range(1,int(np.amax(norm)/stepSize)):
-        m = (norm >= i+1)&(vis==1) # equivalent to a non-inclusive upper bound of int(norm)
-        # should this be the case? or should it just be >= i?
-        thisx += dx*stepSize
-        thisy += dy*stepSize
-        thish += dh*stepSize
-        h = quadHeight(grid,thisx[m],thisy[m]) 
-        w = h >= thish[m]
+        m = (norm >= (i+1)*stepSize)&(vis==1) 
+        thisx += dx
+        thisy += dy
+        thish += dh
+        h = quadHeight(grid,thisx[m],thisy[m])
+        # if height unknow get NaN so also mark as not visible
+        w = (h >= thish[m]) | np.isnan(h)
         vis[tuple(a[w] for a in np.where(m))] = 0
     return vis
 
+cost = 0
 # y passed in world coordinates so grid coordinates are height-1-y
 # assumes point actually inside grid (checked by call to quadheight to get groundHeight first in stateless.py)
 def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,maxRange=3000,gridsize=30.0,stepSize=None):
+    global cost
     gheight, gwidth = grid.shape
     
     pointy = gheight - pointy - 1
@@ -78,13 +70,28 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,maxRange=3000,g
     view = np.full_like(grid,0,int)
 
     ys, xs = np.indices(grid.shape,float)
-    
+
     if stepSize is None:
         stepSize = gridsize
     stepSize /= gridsize # step in grid coordinates
-    
-    view[mask] = visible(grid,pointx,pointy,xs[mask],ys[mask],elevation,isOffset,stepSize)
-    
+
+    m = np.where(mask)
+    # step size decreases in multiples of 8 to reduce overall work
+    scaleUp = int(math.log(gheight/(2.0*stepSize),8))
+    for s in range(scaleUp,-1,-1):
+        result = visible(grid,pointx,pointy,xs[m],ys[m],elevation,isOffset,stepSize*8.0**s).astype(bool)
+        view[m] = result # clears points known to not be visible
+        m = tuple(a[result] for a in m) # smaller mask for next loop
+
     return view
-  
+
+
+if __name__=="__main__" and False:
+    import timeit
+    grid = np.full((1000,1000),0,float)
+    mask = np.full((1000,1000),0,bool)
+    px = 499.9
+    py = 500.1
+    t = timeit.Timer(lambda : viewshed(grid,px,py,mask,100,False,gridsize=2.0))
+    print t.timeit(500)
 
