@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPS Track Editor" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gte="http://www.gpstrackeditor.com/xmlschemas/General/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3" targetNamespace="http://www.topografix.com/GPX/1/1" elementFormDefault="qualified" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata>
+	<name>Midtre_Lovenbreen_flight.gpx</name>
+	<link href="http://www.garmin.com">
+		<text>Garmin International</text>
+	</link>
+</metadata>
+<trk>
+	<name>2018-04-30 22:41:16</name>
+	<trkseg>
+		<trkpt lat="78.926019" lon="11.963586">
+			<ele>160.20</ele>
+			<time>2018-04-30T18:27:14Z</time>
+		</trkpt>
+		<trkpt lat="78.921444" lon="11.981476">
+			<ele>180.87</ele>
+			<time>2018-04-30T18:27:46Z</time>
+		</trkpt>
+		<trkpt lat="78.915384" lon="12.005755">
+			<ele>155.39</ele>
+			<time>2018-04-30T18:28:22Z</time>
+		</trkpt>
+		<trkpt lat="78.908168" lon="12.034004">
+			<ele>126.55</ele>
+			<time>2018-04-30T18:29:09Z</time>
+		</trkpt>
+		<trkpt lat="78.900263" lon="12.055777">
+			<ele>132.80</ele>
+			<time>2018-04-30T18:30:09Z</time>
+		</trkpt>
+		<trkpt lat="78.894414" lon="12.057899">
+			<ele>167.41</ele>
+			<time>2018-04-30T18:30:47Z</time>
+		</trkpt>
+		<trkpt lat="78.891806" lon="12.055066">
+			<ele>212.11</ele>
+			<time>2018-04-30T18:31:04Z</time>
+		</trkpt>
+		<trkpt lat="78.889871" lon="12.053278">
+			<ele>253.44</ele>
+			<time>2018-04-30T18:31:17Z</time>
+		</trkpt>
+		<trkpt lat="78.888039" lon="12.050959">
+			<ele>290.46</ele>
+			<time>2018-04-30T18:31:28Z</time>
+		</trkpt>
+		<trkpt lat="78.884446" lon="12.047652">
+			<ele>335.64</ele>
+			<time>2018-04-30T18:31:46Z</time>
+		</trkpt>
+		<trkpt lat="78.878883" lon="12.039717">
+			<ele>391.39</ele>
+			<time>2018-04-30T18:32:15Z</time>
+		</trkpt>
+		<trkpt lat="78.876042" lon="12.031053">
+			<ele>435.61</ele>
+			<time>2018-04-30T18:32:32Z</time>
+		</trkpt>
+		<trkpt lat="78.874628" lon="12.023136">
+			<ele>471.18</ele>
+			<time>2018-04-30T18:32:43Z</time>
+		</trkpt>
+		<trkpt lat="78.873498" lon="12.011132">
+			<ele>509.16</ele>
+			<time>2018-04-30T18:32:55Z</time>
+		</trkpt>
+		<trkpt lat="78.873471" lon="11.992591">
+			<ele>559.14</ele>
+			<time>2018-04-30T18:33:12Z</time>
+		</trkpt>
+		<trkpt lat="78.876005" lon="12.004419">
+			<ele>582.22</ele>
+			<time>2018-04-30T18:33:35Z</time>
+		</trkpt>
+		<trkpt lat="78.875794" lon="12.027418">
+			<ele>542.32</ele>
+			<time>2018-04-30T18:33:57Z</time>
+		</trkpt>
+		<trkpt lat="78.876642" lon="12.045837">
+			<ele>493.29</ele>
+			<time>2018-04-30T18:34:15Z</time>
+		</trkpt>
+		<trkpt lat="78.879986" lon="12.049892">
+			<ele>438.98</ele>
+			<time>2018-04-30T18:34:34Z</time>
+		</trkpt>
+		<trkpt lat="78.883237" lon="12.037147">
+			<ele>397.16</ele>
+			<time>2018-04-30T18:34:54Z</time>
+		</trkpt>
+		<trkpt lat="78.887093" lon="12.030886">
+			<ele>358.23</ele>
+			<time>2018-04-30T18:35:18Z</time>
+		</trkpt>
+		<trkpt lat="78.890334" lon="12.057236">
+			<ele>320.74</ele>
+			<time>2018-04-30T18:35:49Z</time>
+		</trkpt>
+		<trkpt lat="78.892473" lon="12.080438">
+			<ele>281.80</ele>
+			<time>2018-04-30T18:36:16Z</time>
+		</trkpt>
+		<trkpt lat="78.895802" lon="12.075221">
+			<ele>240.47</ele>
+			<time>2018-04-30T18:36:37Z</time>
+		</trkpt>
+		<trkpt lat="78.900946" lon="12.057754">
+			<ele>205.86</ele>
+			<time>2018-04-30T18:37:07Z</time>
+		</trkpt>
+		<trkpt lat="78.909551" lon="12.042258">
+			<ele>180.87</ele>
+			<time>2018-04-30T18:37:50Z</time>
+		</trkpt>
+		<trkpt lat="78.921058" lon="12.004227">
+			<ele>159.72</ele>
+			<time>2018-04-30T18:38:57Z</time>
+		</trkpt>
+		<extensions>
+			<name>#1</name>
+			<color>#fbaf00</color>
+		</extensions>
+		</trkseg>
+</trk>
+</gpx>
