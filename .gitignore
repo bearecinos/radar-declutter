@@ -1,1 +1,4 @@
 *.pyc
+docs/database/info/
+docs/database/projected/
+docs/database/resampled/
