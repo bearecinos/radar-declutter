@@ -1,7 +1,7 @@
 import sys
 import path
 import models
-import makeArrays
+
 def main(args=None):
     if args is None:
         args = sys.argv[1:]
@@ -10,6 +10,7 @@ def main(args=None):
         return showHelp()
     # load rasters into numpy format
     if args[0] == "load":
+        import makeArrays
         filename = args[1]
         lat,lon = float(args[2]),float(args[3])
         out,cellSize = None,None

@@ -55,7 +55,7 @@ def processData(filename,crop=[0,0],outName=None,style="gpx"):
     elif style == "xyz":
         xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
     else:
-        print "Format not recognised. should be 'gpx' or 'dst'"
+        print "Format not recognised. should be 'gpx', 'dst' or 'xyz'"
         return -1
     if outName is None:
         outName = filename[:-4]
@@ -148,7 +148,6 @@ def showPath(filename,crop=[0,0],style="gpx"):
 
 def showAboveGround(filename,crop=[0,0],style="gpx"):
     import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
     import viewshed
     

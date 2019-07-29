@@ -5,7 +5,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 def loadArcpy():
-    import declutter.Generate
-    import declutter.slopeAspect
+    import declutter.makeArrays as makeArrays
 
-__all__ = ["changeSize","models","path","stateless","test","loadArcpy"]    
+__all__ = ["changeSize","models","path","pointData","loadArcpy"]    

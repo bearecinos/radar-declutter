@@ -61,7 +61,7 @@ def visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
 cost = 0
 # y passed in world coordinates so grid coordinates are height-1-y
 # assumes point actually inside grid (checked by call to quadheight to get groundHeight first in stateless.py)
-def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,maxRange=3000,gridsize=30.0,stepSize=None):
+def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,stepSize=None):
     global cost
     gheight, gwidth = grid.shape
     

@@ -16,7 +16,7 @@ import h5py
 # i.e. 1km at ice speed is actually about 1.8km away
 
 #_MAXDIST = 3000.0
-_MAXDIST = 750.0*3.0/1.67 # from sample radargram range
+_MAXDIST = 701 * 1.25e-8 * 1.5e8 # from sample radargram
 _GRANULARITY = 1.25e-8 # 10ns
 _SPACE_GRANULARITY = _GRANULARITY*3e8
 _MAXTIME = 2*_MAXDIST/3e8
@@ -274,7 +274,7 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.show()
 
 def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,
-               directional = direcNone):
+               directional = direcNone, compareTo = None):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(10.5,5.5))
     try:
@@ -291,7 +291,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     out = np.full((len(files),_steps),0,float)
     for i in range(len(files)):
         filename = files[i]
-        with h5py.File(filename,"r") as f:
+        with h5py.File(name+"/"+filename,"r") as f:
             heights.append(f["meta"][2])
         out[i] = processSlice(name+"/"+filename,intensityModel,wave,rFactor,directional)  
 
@@ -309,11 +309,18 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     
     # clipping
     #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
+    if compareTo is not None:
+        compareTo *= np.amax(draw)/np.amax(compareTo)
     
-    m = np.amax(abs(draw))*1.5
+    m = np.amax(abs(draw))*2.0
     for i in range(len(files)):
-        plt.plot(draw[i]+m*i,ys,"k-")
-        plt.fill_betweenx(ys,m*i,m*i+draw[i],where=(draw[i]>0),color='k')
+        plt.plot(draw[i]+m*i,ys,"k-",zorder=5,label="model")
+        if compareTo is None:
+            plt.fill_betweenx(ys,m*i,m*i+draw[i],where=(draw[i]>0),color='k')
+        else:
+            plt.plot(compareTo[i]+m*i,ys,"r-",zorder=2,label="reference",alpha=0.3)
+            if i == 0:
+                plt.legend()
     plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
     plt.xlim(-m,m*len(files))
     plt.gca().axes.get_xaxis().set_visible(False)
@@ -321,9 +328,12 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     ######## Re-enable plotting once done with tests
     #plt.show()
     ########
+    a = draw.reshape(-1)
+    b = compareTo.reshape(-1)
+    return np.corrcoef(a,b)[0,1]
     
 def showWave(wave=GaussianDot()):
-    x = np.linspace(0,_MAXTIME,_steps)
+    x = np.linspace(-_MAXTIME/10.0,_MAXTIME,_steps)
     y = wave.amplitude(x)
     
     #f = np.vectorize(wave.amplitude)

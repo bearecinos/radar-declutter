@@ -18,7 +18,6 @@ def determineSystem(lat,lon):
 
 north = 'Projected Coordinate Systems/Polar/UPS North'
 south = 'Projected Coordinate Systems/Polar/UPS South'
-default = 'Projected Coordinate Systems/UTM/WGS 1984/Northern Hemisphere/WGS 1984 UTM Zone 33N'
 prefix = 'Projected Coordinate Systems/UTM/WGS 1984/Northern Hemisphere/WGS 1984 UTM Zone '
 
 # utm limits are -80 and +84, have 0.5 degree overlap with polar so convert if <-79.5 or >83.5
@@ -28,7 +27,7 @@ prefix = 'Projected Coordinate Systems/UTM/WGS 1984/Northern Hemisphere/WGS 1984
 # still need utm to determine the zone
 # possible only arcMap will know used coordinate system so need reference gps point
 
-def project(source, systemName = default, saveAs = "projected"):
+def project(source, systemName, saveAs = "projected"):
     if type(source) == str:
         source = arcpy.Raster(source)
     sr = systemName
