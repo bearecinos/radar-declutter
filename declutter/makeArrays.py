@@ -2,6 +2,7 @@ import arcpy
 import numpy as np
 from projection import *
 import os
+import h5py
 __all__ = ["justAspect","justSlope","justHeightmap","makeAll","rastersToNumpy"]
 
 _NODATA = np.nan
@@ -49,10 +50,14 @@ def coordinateSystem(raster,sampleLat,sampleLon,outDir=None):
     else:
         out = outDir+"/projected"
     # need utm coordinates to relate to path data
-    if "WGS_1984_UTM_Zone" not in e.spatialReference.name:
-        print "Projecting to UTM coordinate system."
-        return project(raster,determineSystem(sampleLat,sampleLon),out)
-    print "Already in UTM coordinates"
+    if -79.5 <= sampleLat and sampleLat <= 83.5:
+        if "WGS_1984_UTM_Zone" not in e.spatialReference.name:
+            print "Projecting to UTM coordinate system."
+            return project(raster,determineSystem(sampleLat,sampleLon),out)
+    else:
+        if "UPS" not in e.spatialReference.name:
+            print "Projecting to UPS coordinate system."
+            return project(raster,determineSystem(sampleLat,sampleLon),out)
     return raster
 
 def _makeSlope(raster):
@@ -79,14 +84,9 @@ def justAspect(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
     aspect = arcpy.RasterToNumPyArray(_makeAspect(raster),corner,nodata_to_value=_NODATA)
     
-    save = {"aspect":aspect}
-    if os.path.exists("maps.npz"):
-        f = np.load("maps.npz")
-        for name in f:
-            if name != "aspect":
-                save[name] = f[name]
-    np.savez_compressed("maps.npz",**save)
-    makeInfo(corner.X,corner.Y,cellSize)
+    with h5py.File("maps.hdf5","a") as f:
+        f["aspect"] = aspect
+        f["meta"] = np.array([corner.X,corner.Y,cellSize])
 
 def justSlope(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     arcpy.env.overwriteOutput = True
@@ -96,14 +96,9 @@ def justSlope(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
     slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)
     
-    save = {"slope":slope}
-    if os.path.exists("maps.npz"):
-        f = np.load("maps.npz")
-        for name in f:
-            if name != "slope":
-                save[name] = f[name]
-    np.savez_compressed("maps.npz",**save)
-    makeInfo(corner.X,corner.Y,cellSize)
+    with h5py.File("maps.hdf5","a") as f:
+        f["slope"] = slope
+        f["meta"] = np.array([corner.X,corner.Y,cellSize])
 
 def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     arcpy.env.overwriteOutput = True
@@ -111,26 +106,18 @@ def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     corner = raster.extent.lowerLeft
     cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
     heightmap = arcpy.RasterToNumPyArray(heightmap,corner,nodata_to_value=_NODATA)
-    save = {"heightmap":heightmap}
-    if os.path.exists("maps.npz"):
-        f = np.load("maps.npz")
-        for name in f:
-            if name != "heightmap":
-                save[name] = f[name]
-    if "aspect" in save:
-        heightmap[np.isnan(save["aspect"])] = np.nan
-    elif "slope" in save:
-        heightmap[np.isnan(save["slope"])] = np.nan
-    else:
-        print "Note: Should run after storing aspect/slope."
-        print "This ensures a point with missing data in any 1 array has missing data according to all 3."
-    np.savez_compressed("maps.npz",**save)
-    makeInfo(corner.X,corner.Y,cellSize)
 
-def makeInfo(x0,y0,cellSize):
-    line = str(x0)+","+str(y0)+","+str(cellSize)
-    with open("info.txt","w") as f:
-        f.write(line)
+
+    with h5py.File("maps.hdf5","a") as f:
+        if "aspect" in f:
+            heightmap[np.isnan(f["aspect"][()])] = np.nan
+        elif "slope" in f:
+            heightmap[np.isnan(f["slope"][()])] = np.nan
+        else:
+            print "Note: Should run after storing aspect/slope."
+            print "This ensures a point with missing data in any 1 array has missing data according to all 3."
+        f["heightmap"] = heightmap
+        f["meta"] = np.array([corner.X,corner.Y,cellSize])
 
 
 def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
@@ -157,12 +144,16 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
     slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)
     heightmap = arcpy.RasterToNumPyArray(raster,corner,nodata_to_value=_NODATA)
     # may move to stateless - after viewshed called
-    heightmap[np.isnan(slope) | np.isnan(aspect)] = _NODATA 
-    np.savez_compressed("maps.npz",heightmap=heightmap,slope=slope,aspect=aspect)
-    makeInfo(corner.X,corner.Y,cellSize)
+    heightmap[np.isnan(slope) | np.isnan(aspect)] = _NODATA
+
+    with h5py.File("maps.hdf5","w") as f:
+        f["heightmap"] = heightmap
+        f["aspect"] = aspect
+        f["slope"] = slope
+        f["meta"] = np.array([corner.X,corner.Y,cellSize])
     return 0
 
-def rastersToNumpy(heightmap,aspect=None,slope=None):
+def rastersToHdf(heightmap,aspect=None,slope=None):
     """Converts all rasters to numpy arrays, generating them if they don't already exist.
     Note: This expects the strings for the names of the rasters and will not do any resampling etc.
     Sometimes get errors trying to run tools on projected/resampled rasters or accessing environment.
@@ -185,5 +176,9 @@ def rastersToNumpy(heightmap,aspect=None,slope=None):
     heightmap = arcpy.RasterToNumPyArray(heightmap,corner,nodata_to_value=_NODATA)
     heightmap[np.isnan(aspect)] = _NODATA
 
-    np.savez_compressed("maps.npz",heightmap=heightmap,slope=slope,aspect=aspect)
-    makeInfo(corner.X,corner.Y,cellSize)
+    with h5py.File("maps.hdf5","w") as f:
+        f["heightmap"] = heightmap
+        f["aspect"] = aspect
+        f["slope"] = slope
+        f["meta"] = np.array([corner.X,corner.Y,cellSize])
+    return 0

@@ -23,11 +23,11 @@ def quadHeight(grid,x,y): # bi-quadratic interpolation of height
     return res
 
 def visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
-    vis = np.full_like(x,1,int)
+    vis = np.full_like(x,True,bool)
     if len(x) == 0:
         return vis # else get error when attempting to call np.amax on 0 length array
     endh = quadHeight(grid,x,y)
-    vis[np.isnan(endh)] = 0 # won't be detected later as thish will be NaN
+    vis[np.isnan(endh)] = False # won't be detected later as thish will be NaN
     if isOffset:
         starth = quadHeight(grid,np.array([startx]),np.array([starty]))+elevation
     else:
@@ -55,7 +55,7 @@ def visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
         h = quadHeight(grid,thisx[m],thisy[m])
         # if height unknow get NaN so also mark as not visible
         w = (h >= thish[m]) | np.isnan(h)
-        vis[tuple(a[w] for a in np.where(m))] = 0
+        vis[tuple(a[w] for a in np.where(m))] = False
     return vis
 
 cost = 0
@@ -67,7 +67,7 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,maxRange=3000,g
     
     pointy = gheight - pointy - 1
     
-    view = np.full_like(grid,0,int)
+    view = np.full_like(grid,False,bool)
 
     ys, xs = np.indices(grid.shape,float)
 
@@ -76,6 +76,7 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,maxRange=3000,g
     stepSize /= gridsize # step in grid coordinates
 
     m = np.where(mask)
+    
     # step size decreases in multiples of 8 to reduce overall work
     scaleUp = int(math.log(gheight/(2.0*stepSize),8))
     for s in range(scaleUp,-1,-1):

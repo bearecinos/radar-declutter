@@ -3,14 +3,17 @@ from progress import progress
 import numpy as np
 import xml.etree.cElementTree as ET
 import utm
+import pyproj
 import multiprocessing as mp
+import h5py
+import os
 #https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
 
 
 def workerCall(args):
     return pointData.generateMaps(*args)
     
-def genPath(xs,ys,zs,name,isOffset=True):
+def _genPath(xs,ys,zs,name,isOffset=True):
     global pool
     """Generates path data for the specified points, including antenna orientation data.
     Parameters:
@@ -18,6 +21,7 @@ def genPath(xs,ys,zs,name,isOffset=True):
     ys float array : array of y coordinates of path.
     zs float array : array of altitude/elevation above ground along path.
     isOffset boolean (optional) : whether then given z coordinates are altitude or relative to the ground. Default is relative."""
+    os.makedirs(name)
     direction = np.full_like(xs,0,float) # degrees
     direction[0] = 180.0/np.pi*(np.arctan2(xs[0]-xs[1], ys[0]-ys[1]))+180.0
     direction[-1] = 180.0/np.pi*(np.arctan2(xs[-2]-xs[-1], ys[-2]-ys[-1]))+180.0
@@ -40,9 +44,25 @@ def genPath(xs,ys,zs,name,isOffset=True):
         print "Failed to generate one or more points using pointData.generateMaps"
         return -1
     return 0     
+
+def processData(filename,crop=[0,0],outName=None,style="gpx"):
+    if style == "gpx":
+        lons,lats,zs,outName = _loadGpx(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "dst":
+        lons,lats,zs = _loadDst(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "xyz":
+        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
+    else:
+        print "Format not recognised. should be 'gpx' or 'dst'"
+        return -1
+    if outName is None:
+        outName = filename[:-4]
+    return _genPath(xs,ys,zs,outName,False)   
+
     
-# only display from crop[0] to end-crop[1] e.g. [250,220]
-def loadGpx(filename,crop=[0,0],outName=None):
+def _loadGpx(filename,crop=[0,0],outName=None):
     try:
         root = ET.parse(filename).getroot()
     except IOError:
@@ -70,62 +90,115 @@ def loadGpx(filename,crop=[0,0],outName=None):
     lats = np.array(lats[crop[0]:n-crop[1]],float)
     lons = np.array(lons[crop[0]:n-crop[1]],float)
     zs = np.array(zs[crop[0]:n-crop[1]],float)
-    # Convert Lon/lat to x,y for coordinate system
-    # Assuming z should be unchanged, check by 'showOnSurface()'
-    xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons)
-    return genPath(xs,ys,zs,outName,False)
+    return lons,lats,zs,outName
 
-def showPath(filename,crop=[0,0]):
+def _loadDst(filename,crop=[0,0],noData=0.0):
+    """Loads a given .dst file, cropping the first crop[0] values and last
+    crop[1]. any entry with z = noData will be removed."""
+    data = np.loadtxt(filename).swapaxes(0,1)
+    n = len(data)
+    data = data[crop[0]:n-crop[1]]
+    zs = data[2]
+    m = zs != noData
+    zs = zs[m]
+    lats = data[0][m]
+    lons = data[1][m]
+    
+    return lons,lats,zs
+
+_northProj = pyproj.Proj("+proj=ups")
+_southProj = pyproj.Proj("+proj=ups +south")
+_gpsProj = pyproj.Proj("+init=EPSG:4326") # wgs 84
+
+def gpsToXY(lons,lats):
+    if -79.5 <= lats[0] and lats[0] <= 83.5:
+        xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons)
+    elif -79.5 > lats[0]:
+        print "Need to use UPS coordinates."
+        print "Not tested if elevation values still accurate on UPS map."
+        xs,ys = pyproj.transform(_gpsProj,_southProj,lons,lats)
+    else:
+        print "Need to use UPS coordinates."
+        print "Not tested if elevation values still accurate on UPS map."
+        xs,ys = pyproj.transform(_gpsProj,_northProj,lons,lats)
+    return xs,ys
+
+def showPath(filename,crop=[0,0],style="gpx"):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
-    root = ET.parse(filename).getroot()
-    prefix = ""
-    if root.get("targetNamespace") is not None:
-        prefix = "{"+root.get("targetNamespace")+"}"
-    lats,lons,zs = [],[],[]
-    for pt in root.iter(prefix+"trkpt"): # recursively searches for points in document order
-        lats.append(pt.get("lat"))
-        lons.append(pt.get("lon"))
-        zs.append(pt.find(prefix+"ele").text)
-    n = len(lats)
-    lats = np.array(lats[crop[0]:n-crop[1]],float)
-    lons = np.array(lons[crop[0]:n-crop[1]],float)
-    zs = np.array(zs[crop[0]:n-crop[1]],float)
-    # Convert Lon/lat to x,y for coordinate system
-    xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons)
+
+    if style == "gpx":
+        lons,lats,zs = _loadGpx(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "dst":
+        lons,lats,zs = _loadDst(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "xyz":
+        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
+    else:
+        print "Format not recognised. should be 'gpx' or 'dst'"
+        return -1
+    
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.plot(xs,ys,zs)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     plt.show()
-    
-def showOnSurface(filename,crop=[0,0],extend=10):
+
+def showAboveGround(filename,crop=[0,0],style="gpx"):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
-    root = ET.parse(filename).getroot()
-    prefix = ""
-    if root.get("targetNamespace") is not None:
-        prefix = "{"+root.get("targetNamespace")+"}"
-    lats,lons,zs = [],[],[]
-    for pt in root.iter(prefix+"trkpt"): # recursively searches for points in document order
-        lats.append(pt.get("lat"))
-        lons.append(pt.get("lon"))
-        zs.append(pt.find(prefix+"ele").text)
-    n = len(lats)
-    lats = np.array(lats[crop[0]:n-crop[1]],float)
-    lons = np.array(lons[crop[0]:n-crop[1]],float)
-    zs = np.array(zs[crop[0]:n-crop[1]],float)
-    xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons)
+    import viewshed
+    
+    if style == "gpx":
+        lons,lats,zs = _loadGpx(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "dst":
+        lons,lats,zs = _loadDst(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "xyz":
+        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
+    else:
+        print "Format not recognised. should be 'gpx' or 'dst'"
+        return -1
 
-    heightmap = np.load("maps.npz")["heightmap"]
+    with h5py.File("maps.hdf5","r") as f:
+        grid = f["heightmap"][()]
+        left,low,cellSize = f["meta"][()]
+    height,width = grid.shape
+
+    xs = (xs-left)/cellSize
+    ys = height-(ys-low)/cellSize
+    groundHeights = viewshed.quadHeight(grid,xs,ys)
+    plt.plot(zs,label="radar")
+    plt.plot(groundHeights,label="ground")
+    plt.legend()
+    plt.show()
+    
+
+def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    from matplotlib import cm
+    if style == "gpx":
+        lons,lats,zs = _loadGpx(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "dst":
+        lons,lats,zs = _loadDst(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "xyz":
+        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
+    else:
+        print "Format not recognised. should be 'gpx' or 'dst'"
+        return -1
+
+    with h5py.File("maps.hdf5","r") as f:
+        heightmap = f["heightmap"][()]
+        left,low,cellSize = f["meta"][()]
     height,width = heightmap.shape
-    with open("info.txt","r") as f:
-        line = f.read().split(",")
-    left = float(line[0])
-    low = float(line[1])
-    cellSize = float(line[2])
+    
     xcoords = (np.amin(xs)-left)/cellSize, (np.amax(xs)-left)/cellSize
     xcoords = max(0,int(xcoords[0]-extend)), min(width,int(xcoords[1]+extend))
     ycoords = height - 1 - (np.amax(ys)-low)/cellSize, height - 1 - (np.amin(ys)-low)/cellSize
@@ -144,11 +217,8 @@ def showOnSurface(filename,crop=[0,0],extend=10):
         X,Y = X[::factor,::factor], Y[::factor,::factor]
     X = left + X*cellSize
     Y = low + Y*cellSize
-
-    # replaced noData value with nan so no longer needed
-    #heightmap[heightmap < -50000] = np.nan
     
-    my_col = cm.jet((heightmap-np.nanmin(heightmap))/(np.nanmax(heightmap)-np.nanmin(heightmap)))
+    my_col = cm.terrain((heightmap-np.nanmin(heightmap))/(np.nanmax(heightmap)-np.nanmin(heightmap)))
     fig = plt.figure()
     ax = Axes3D(fig)
     ax.plot_surface(X,Y,heightmap,facecolors=my_col,linewidth=0,antialiased=False)
@@ -157,31 +227,27 @@ def showOnSurface(filename,crop=[0,0],extend=10):
 
 # Assumes NaN is undefined value, otherwise need to change equality test
 # (Can't use == for NaNs, need np.isnan(...) instead)
-def checkValid(filename,crop = [0,0]):
+def checkValid(filename,crop = [0,0],style="gpx"):
     """Indicate if any of the map is undefined within 3km (current fixed range) of a point on the path.
     Also highlights if the map is undefined directly beneath any points on the path."""
-    root = ET.parse(filename).getroot()
-    prefix = ""
-    if root.get("targetNamespace") is not None:
-        prefix = "{"+root.get("targetNamespace")+"}"
-    lats,lons,zs = [],[],[]
-    for pt in root.iter(prefix+"trkpt"): # recursively searches for points in document order
-        lats.append(pt.get("lat"))
-        lons.append(pt.get("lon"))
-        zs.append(pt.find(prefix+"ele").text)
-    n = len(lats)
-    lats = np.array(lats[crop[0]:n-crop[1]],float)
-    lons = np.array(lons[crop[0]:n-crop[1]],float)
-    zs = np.array(zs[crop[0]:n-crop[1]],float)
-    xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons)
+    if style == "gpx":
+        lons,lats,zs = _loadGpx(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "dst":
+        lons,lats,zs = _loadDst(filename,crop)
+        xs,ys = gpsToXY(lons,lats)
+    elif style == "xyz":
+        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
+    else:
+        print "Format not recognised. should be 'gpx' or 'dst'"
+        return -1
 
-    heightmap = np.load("maps.npz")["heightmap"]
+
+
+    with h5py.File("maps.hdf5","r") as f:
+        heightmap = f["heightmap"][()]
+        left,low,cellSize = f["meta"][()]
     height,width = heightmap.shape
-    with open("info.txt","r") as f:
-        line = f.read().split(",")
-    left = float(line[0])
-    low = float(line[1])
-    cellSize = float(line[2])
     Y,X = np.indices(heightmap.shape)
     Y = Y[::-1]
     X = left + X*cellSize

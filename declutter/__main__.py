@@ -5,9 +5,8 @@ import makeArrays
 def main(args=None):
     if args is None:
         args = sys.argv[1:]
-    print args
-    if len(args) < 2:
-        print "Wrong number of arguments. Options: "
+    if len(args) == 0:
+        print "No arguments given. Options: "
         return showHelp()
     # load rasters into numpy format
     if args[0] == "load":
@@ -55,8 +54,13 @@ def main(args=None):
             return showHelp()
         else:
             out = filename[:-4]+"Out"
-        path.loadGpx(filename,[0,0],out)
+        style = "gpx"
+        if filename[-3:] == "dst":
+            style = "dst"
+        path.processData(filename,[0,0],out,style)
         return models.compare(out)
+    elif args[0] == "help" or args[0] == "h":
+        showHelp()
     else:
         print "Command not recognised. Options: "
         return showHelp()

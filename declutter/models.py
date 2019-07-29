@@ -7,18 +7,21 @@ from os import listdir
 from scipy import signal
 import multiprocessing as mp
 from progress import progress
+import h5py
 
 # plt.ion makes plots interactive (nonblocking) but may harm performance
 # and/or stability
 
-_MAXDIST = 3000.0 
-_GRANULARITY = 1e-8 # 10ns
+# Dist assuming 3x10^8. If basing on radargram, account for 1.67x10^8
+# i.e. 1km at ice speed is actually about 1.8km away
+
+#_MAXDIST = 3000.0
+_MAXDIST = 750.0*3.0/1.67 # from sample radargram range
+_GRANULARITY = 1.25e-8 # 10ns
 _SPACE_GRANULARITY = _GRANULARITY*3e8
 _MAXTIME = 2*_MAXDIST/3e8
 
 _steps = int(_MAXTIME/_GRANULARITY)
-
-_MetaFilePath = "/x_y_z"
 
 def _time(distance):
     """Get the time for a wave to return to the radar after reflecting off a
@@ -40,9 +43,19 @@ def Minnaert(theta,k):
 def Min2(theta):
     return Minnaert(theta,2) # as can't pass lambda to processor pool
 def raySpecular(theta,n=1):
-    return np.power(np.maximum(0,np.cos(theta*2)),n) 
+    return np.power(np.maximum(0,np.cos(theta*2)),n)
 
-_wavelength = 50
+def rayModel(theta):
+    return np.maximum(0,np.cos(theta*2))
+def ray2Model(theta):
+    return np.power(np.maximum(0,np.cos(theta*2)),2)
+def specular2Model(theta):
+    return np.power(np.cos(theta),2)
+def specular4Model(theta):
+    return np.power(np.cos(theta),4)
+
+########## UNDO?
+_wavelength = 100
 _freq = 3e8/_wavelength
 
 def bandpass_filter(data, lowcut, highcut, fs, order=5):
@@ -63,35 +76,61 @@ class MidNorm(colors.Normalize):
 
 # wave models
 class Ricker:
-    lim = 1.0/_freq
+    delt = 1.0/_freq # time of centre point of wave
+    align = 0.0 # time that should align to pulse at t=0
     def amplitude(self,t):
-        return (1-2*np.pi**2*_freq**2*t**2)*np.exp(-np.pi**2*_freq**2*t**2)
+        return ((1-2*np.pi**2*_freq**2*(t-self.delt)**2)*
+                np.exp(-np.pi**2*_freq**2*(t-self.delt)**2))
 class GaussianDot:
-    lim = 2.0/(3.0*_freq)
+    delt = 2.0/(3.0*_freq)
+    align = 0.0
     def amplitude(self,t):
-        return -np.exp(0.5)*2*np.pi*_freq*t*np.exp(-2*np.pi**2*_freq**2*t**2)
+        return (-np.exp(0.5)*2*np.pi*_freq*(t-self.delt)*
+                np.exp(-2*np.pi**2*_freq**2*(t-self.delt)**2))
 class Constant:
-    lim = _GRANULARITY/2.0
+    delt = 0.0
+    align = 0.0
     def amplitude(self,t):
-        return 1.0
+        return t < _GRANULARITY 
 class IDLWave:
     # exp( - (findgen(echo_size)-float(i))^2/50. )
     # timestep was 240us (2.4e-4 seconds echo length) / 2048 granularity
     # = 1.172e-7 = 117ns - much longer than our sampling rate
     # scaling = 1.172e-7
-    lim = _MAXTIME
+    align = _MAXTIME / 2.0
+    delt = align
     def __init__(self,c=50.0):
         self.c = float(c)
     def amplitude(self,t):
-        return np.exp(-(t)**2/self.c)
+        return np.exp(-(t-self.delt)**2/self.c)
 class RC:
+    align = 0.0
     def __init__(self,c=5.0):
         self.c = float(c)
-    lim = 30e-6
     def amplitude(self,t):
         if t < 0:
             return 0.0
         return np.exp(-t/(self.c*1e-6))
+
+
+class Other:
+    delt = 1.0/_freq
+    align = 0.0
+    def amplitude(self,t):
+        p = 2*np.pi*_freq*(t-self.delt)
+        return (p**4-10*p**2+8)*np.exp(-p*p/4.0)/8.0
+class CosExp:
+    delt = 1.1/_freq
+    align = 0.0
+    def amplitude(self,t):
+        p = 2*np.pi*_freq*(t-self.delt)
+        return np.cos(1.5*p)*np.exp(-p*p/16.0)
+class Sym:
+    delt = 0.5/_freq
+    align = 0.0
+    def amplitude(self,t):
+        p = 2*np.pi*_freq*(t-self.delt)
+        return (160*p-56*p*p*p+3*p**5)*np.exp(-p*p/4)/(1.343*64.0)
 
 # Squared to account for also being receiver?
 def directionality(theta,phi):
@@ -101,46 +140,63 @@ def directionality(theta,phi):
     #return np.sin(theta)**4
     return abs(np.sin(theta))**0.5
 
-# Replace GaussianDot with RC
-def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot()):
-    try:
-        arrays = np.load(filename+"/arrays.npz")
-    except IOError:
-        print "Error in models.py, could not load file "+filename+"/arrays.npz"
-        print "Note, if trying to process a directory of points, must be no other files/directories in directory."
-    visible = arrays["visible"]
-    distance = arrays["distance"]
-    angle = arrays["incidence"]
-    theta,phi = None, None
-    if "antennaTheta" in list(arrays):
-        theta = arrays["antennaTheta"]
-        phi = arrays["antennaPhi"]
-    height,width = visible.shape[0], visible.shape[1]
-        
-    m = (visible == 1) & (distance < _MAXDIST)
-    t = (_time(distance[m])/_GRANULARITY).astype(int)
-    intensity = intensityModel(angle[m])
-    if theta is not None:
-        intensity *= directionality(theta[m],phi[m])
+def direcNone(theta,phi):
+    return 1
+def direcBroad(theta,phi):
+    return abs(np.sin(theta))**0.5
+def direcIDL(theta,phi):
+    return np.sin(theta)**2
+def direcLobes(theta,phi):
+    return np.sin(theta)**2*np.sin(3*theta)**2
 
+# Replace GaussianDot with RC
+def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,directional=direcNone):
+    with h5py.File(filename,"r") as f:
+        distance = f["distance"][()]
+        angle = f["incidence"][()]
+        theta,phi = None, None
+        if "antennaTheta" in f:
+            theta = f["antennaTheta"][()]
+            phi = f["antennaPhi"][()]
+    
+    m = (distance < _MAXDIST)
+    t = (_time(distance[m])/_GRANULARITY).astype(int)
+    # Modify to reduce as distance increases
+    # intensity = intensityModel(angle[m]) 
+    intensity = intensityModel(angle[m]) / np.power(distance[m],rFactor)
+    
+    # directionality or not? ##################
+    # input function to use
+    if theta is not None:
+        intensity *= directional(theta[m],phi[m])
+    
+    ###########################################
+
+    # TODO: Decide if this is best way to do wave
+    # TODO: Add in filtering or not?
+
+    ##### UNDO - normalizing by number of points in bin #######
     sample = np.array([np.sum(intensity[t==i]) for i in range(_steps)])
-    low = int(math.floor(-wave.lim/_GRANULARITY))
-    high = 1-low
-    w = np.full((high-low),0,"float")
-    for j in range(high-low):
-        w[j] = wave.amplitude((j+low)*_GRANULARITY)
-    convol = np.convolve(sample,w) # no longer 'same' mode, now full so must crop
-    if len(convol) > _steps:
-        return convol[len(w)/2:len(w)/2+_steps]
-    #return np.convolve(sample,w,"same") # TODO: enforce cropping to length of sample
+    #sample = np.array([np.sum(t==i) for i in range(_steps)])
+    #sample = np.array([np.sum(intensity[t==i])/(1+np.sum(t==i)) for i in range(_steps)])
+    ###########################################################
+
+
+    # CONVOLUTION
+    w = wave.amplitude(np.linspace(0.0,_MAXTIME,_steps))
+    idx = int(wave.align/_GRANULARITY)
+    convol = np.convolve(sample,w)[idx:idx+_steps]
+    
+    # Filtering
+    #convol = bandpass_filter(convol,0.05,0.4,1.0)
+
     return convol
 
 #models = [lambertian,lambda x : Minnaert(x,2), raySpecular, lambda x : raySpecular(x,2)]
 #titles = ["diffuse", "Minnaert k=2", "Specular n=1", "Specular n=2"]
-models = [raySpecular]
-titles = ["Specular n=1"]
-#models = [lambda x : Minnart(x,3)] 
-#titles = ["IDL method"]
+models = [rayModel,ray2Model,specular2Model,specular4Model]
+titles = ["Ray tracing n=1","Ray tracing n=2","sin(theta)^2","sin(theta)^4"]
+
 def compare(name,adjusted=False,wave=GaussianDot()):
     returnData = []
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
@@ -149,13 +205,12 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         files = listdir(name)
     except OSError as e:
         return fileError(e.filename)
-    files.sort(key=lambda x : int(x[5:])) # assumes 'point' prefix
+    files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
     heights = []
-    
-    with open(name+"/"+files[0]+_MetaFilePath,"r") as f:
-        meta = f.read().split(",")
-        x0 = float(meta[0])
-        y0 = float(meta[1])
+
+    with h5py.File(name+"/"+files[0],"r") as f:
+        x0,y0 = f["meta"][:2]
+        
     cells = int(np.ceil(np.sqrt(len(models))))*110
     for j in range(len(models)):
         plt.subplot(cells+j+1)
@@ -181,6 +236,8 @@ def compare(name,adjusted=False,wave=GaussianDot()):
             highest, lowest = 0, 0
         ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
         plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
+        # Clipping
+        #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
 
         draw = np.swapaxes(draw,0,1)
         returnData.append(draw)
@@ -201,43 +258,42 @@ def compare(name,adjusted=False,wave=GaussianDot()):
 def worker(args):
     i = args[0]
     args = args[1]
-    with open(args[0]+_MetaFilePath,"r") as f:
-        h = float(f.read().split(",")[2])
+    with h5py.File(args[0],"r") as f:
+        h = f["meta"][2]
     return i, h, processSlice(*args) 
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(12,8))
     ys = processSlice(filename,intensityModel=raySpecular,wave=wave)
+    # Clipping
+    #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
     xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
     plt.plot(xs,ys,color="black")
     plt.fill_between(xs,ys,0,where=(ys>0),color="black")
     plt.show()
 
-def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()):
+def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,
+               directional = direcNone):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=(20,10))
+    plt.figure(figsize=(10.5,5.5))
     try:
         files = listdir(name)
     except OSError as e:
         return fileError(e.filename)
-    files.sort(key=lambda x : int(x[5:])) # assumes "point" prefix
+    files.sort(key=lambda x : int(x[5:-5])) # assumes "point" prefix
     heights = []
-    
-    with open(name+"/"+files[0]+"/x_y_z","r") as f:
-        meta = f.read().split(",")
-        x0 = float(meta[0])
-        y0 = float(meta[1])
+
+    with h5py.File(name+"/"+files[0],"r") as f:
+        x0,y0 = f["meta"][:2]
     cells = int(np.ceil(np.sqrt(len(files))))*110
     
-    out = np.full((len(files),_steps),0)
+    out = np.full((len(files),_steps),0,float)
     for i in range(len(files)):
         filename = files[i]
-        #filename = "point"+str(i)
-        with open(name+"/"+filename+_MetaFilePath,"r") as f:
-            meta = f.read().split(",")
-            heights.append(float(meta[2]))
-        out[i] = processSlice(name+"/"+filename,intensityModel,wave)  
+        with h5py.File(filename,"r") as f:
+            heights.append(f["meta"][2])
+        out[i] = processSlice(name+"/"+filename,intensityModel,wave,rFactor,directional)  
 
     if adjusted:
         highest = max(heights)
@@ -250,29 +306,37 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
         draw = out
         highest, lowest = 0, 0
     ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
-
-    m = np.amax(abs(draw))
+    
+    # clipping
+    #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
+    
+    m = np.amax(abs(draw))*1.5
     for i in range(len(files)):
         plt.plot(draw[i]+m*i,ys,"k-")
         plt.fill_betweenx(ys,m*i,m*i+draw[i],where=(draw[i]>0),color='k')
     plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
     plt.xlim(-m,m*len(files))
     plt.gca().axes.get_xaxis().set_visible(False)
-    plt.show()
+
+    ######## Re-enable plotting once done with tests
+    #plt.show()
+    ########
     
 def showWave(wave=GaussianDot()):
-    x = np.linspace(-1.5*wave.lim,1.5*wave.lim,500)
-    f = np.vectorize(wave.amplitude)
-    y = f(x)
+    x = np.linspace(0,_MAXTIME,_steps)
+    y = wave.amplitude(x)
+    
+    #f = np.vectorize(wave.amplitude)
+    #y = f(x)
     plt.plot(x,y)
-    plt.plot([0,0],[np.amin(y),np.amax(y)])
-    plt.plot([_GRANULARITY,_GRANULARITY],[np.amin(y),np.amax(y)])
+    plt.plot([wave.align,wave.align],[np.amin(y),np.amax(y)])
+    plt.plot([wave.align+_GRANULARITY,wave.align+_GRANULARITY],[np.amin(y),np.amax(y)])
     plt.show()
-def showDirectionality():
+def showDirectionality(directional=direcBroad):
     import mpl_toolkits.mplot3d.axes3d as axes3d
     theta, phi = np.linspace(0, 2 * np.pi, 30), np.linspace(0, np.pi, 15)
     theta, phi = np.meshgrid(theta,phi)
-    r = directionality(theta,phi)
+    r = directional(theta,phi)
     X = r * np.sin(theta) * np.cos(phi)
     Y = r * np.sin(theta) * np.sin(phi)
     Z = r * np.cos(theta)
