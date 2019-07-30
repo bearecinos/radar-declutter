@@ -1,7 +1,4 @@
-# Expect to find 2 files
-# maps.npz with heightmap, aspect and scope in
-# info.txt with data such as corner coordinates and cell size
-# IN FUTURE: could store other data in info.txt such as for modelling
+# Expect to find maps.hdf5 with surface data e.g. height/slope/aspect
 import math
 import numpy as np
 import os
@@ -24,7 +21,6 @@ _NODATA = np.nan
 def Setup(maps="maps.hdf5"): 
     """Loads the full numpy arrays to be cropped for each point."""
     global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize, _cropSize
-
 
     with h5py.File(maps,"r") as f:
         _fullHeightmap = f["heightmap"][()]
@@ -93,7 +89,7 @@ def _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDi
 
     return theta,phi
 
-def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=None):
+def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None):
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data.
     Parameters:
     pointx float : x-coordinate of point.
@@ -103,8 +99,7 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     isOffset boolean (optional) : Indicates the given 'above_ground' is relative to the ground. Default = True.
     antennaDir float (optional) : The direction the radar was facing in degrees. By default, not used.    
     """
-    global total, part, part2 ##
-    start = clock() ##
+    
     if not _SetupRun:
         if Setup():
             return -1
@@ -157,18 +152,25 @@ def generateMaps(pointx,pointy,path,above_ground=100.0,isOffset=True,antennaDir=
     vis = viewshed.viewshed(heightmap,(pointx-cropLeft)/_CellSize, (pointy-cropLow)/_CellSize,mask,
                             elevation,False,gridsize=_CellSize) # return bool array
     
+    theta,phi = None, None
+    if antennaDir is not None:
+        theta, phi = _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDir)
+        theta, phi = theta[vis], phi[vis]
+    trueDist, incidence = trueDist[vis], incidence[vis]
+    return vis,trueDist,incidence,theta,phi,elevation
 
-    
+
+def store(path,vis,dist,incidence,x,y,elevation,antennaDir=None,theta=None,phi=None):
+    '''Expects all arrays except vis to have already been reduced by generateMaps()
+    i.e. 1D array of only valid points.'''
     with h5py.File(path+".hdf5","w") as f:
         f["visible"] = vis
-        f["distance"] = trueDist[vis]
-        f["incidence"] = incidence[vis]
+        f["distance"] = dist
+        f["incidence"] = incidence
         if antennaDir is not None:
-            theta, phi = _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDir)
-            f["antennaTheta"] = theta[vis]
-            f["antennaPhi"] = phi[vis]
-        f["meta"] = np.array([pointx,pointy,elevation,antennaDir])
-        
+            f["antennaTheta"] = theta
+            f["antennaPhi"] = phi
+        f["meta"] = np.array([x,y,elevation,antennaDir])
     return 0
     
 if __name__=="__main__" and False:

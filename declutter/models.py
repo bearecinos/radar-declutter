@@ -149,8 +149,7 @@ def direcIDL(theta,phi):
 def direcLobes(theta,phi):
     return np.sin(theta)**2*np.sin(3*theta)**2
 
-# Replace GaussianDot with RC
-def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,directional=direcNone):
+def loadArrays(filename):
     with h5py.File(filename,"r") as f:
         distance = f["distance"][()]
         angle = f["incidence"][()]
@@ -158,6 +157,11 @@ def processSlice(filename,intensityModel=raySpecular,wave=GaussianDot(),rFactor=
         if "antennaTheta" in f:
             theta = f["antennaTheta"][()]
             phi = f["antennaPhi"][()]
+    return distance,angle,theta,phi
+
+# Replace GaussianDot with RC
+def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
+                 wave=GaussianDot(),rFactor=0,directional=direcNone):
     
     m = (distance < _MAXDIST)
     t = (_time(distance[m])/_GRANULARITY).astype(int)
@@ -207,9 +211,6 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
     heights = []
-
-    with h5py.File(name+"/"+files[0],"r") as f:
-        x0,y0 = f["meta"][:2]
         
     cells = int(np.ceil(np.sqrt(len(models))))*110
     for j in range(len(models)):
@@ -219,7 +220,7 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         # Bit to parallelize
         # Note - must pass actual function, not a lambda expression
         p = mp.Pool(mp.cpu_count())
-        data = [(i,(name+"/"+files[i],models[j],wave)) for i in range(len(files))] 
+        data = [(i,name+"/"+files[i],models[j],wave) for i in range(len(files))] 
         for i,h,ar in progress(p.imap_unordered(worker,data),len(files)):
             heights.append(h)
             out[i] = ar
@@ -256,16 +257,17 @@ def compare(name,adjusted=False,wave=GaussianDot()):
     return returnData
 
 def worker(args):
-    i = args[0]
-    args = args[1]
-    with h5py.File(args[0],"r") as f:
+    i, name, model, wave = args
+    with h5py.File(name,"r") as f:
         h = f["meta"][2]
-    return i, h, processSlice(*args) 
+    distance,angle,theta,phi = loadArrays(name)
+    return i, h, processSlice(distance,angle,theta,phi,model,wave) 
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(12,8))
-    ys = processSlice(filename,intensityModel=raySpecular,wave=wave)
+    distance,angle,theta,phi = loadArrays(filename)
+    ys = processSlice(distance,angle,theta,phi,intensityModel=raySpecular,wave=wave)
     # Clipping
     #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
     xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
@@ -284,8 +286,6 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     files.sort(key=lambda x : int(x[5:-5])) # assumes "point" prefix
     heights = []
 
-    with h5py.File(name+"/"+files[0],"r") as f:
-        x0,y0 = f["meta"][:2]
     cells = int(np.ceil(np.sqrt(len(files))))*110
     
     out = np.full((len(files),_steps),0,float)
@@ -293,7 +293,8 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
         filename = files[i]
         with h5py.File(name+"/"+filename,"r") as f:
             heights.append(f["meta"][2])
-        out[i] = processSlice(name+"/"+filename,intensityModel,wave,rFactor,directional)  
+        distance,angle,theta,phi = loadArrays(name+"/"+filename)
+        out[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,rFactor,directional)  
 
     if adjusted:
         highest = max(heights)

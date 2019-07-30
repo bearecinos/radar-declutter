@@ -11,7 +11,10 @@ import os
 
 
 def workerCall(args):
-    return pointData.generateMaps(*args)
+    # args = (x,y,z,isOffset,angle,pathName)
+    vis,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-1])
+    return pointData.store(args[5],vis,dist,incidence,args[0],args[1],
+                           elevation, args[4], theta,phi)
     
 def _genPath(xs,ys,zs,name,isOffset=True):
     global pool
@@ -32,8 +35,8 @@ def _genPath(xs,ys,zs,name,isOffset=True):
     direction[m] = 180.0/np.pi*np.arctan2(xs[m2]-xs[m3], ys[m2]-ys[m3])+180.0
     steps = len(xs)
     pool = mp.Pool(mp.cpu_count())
-    data = [(x,y,name+"/point"+str(i),z,isOffset,angle) for x,y,i,z,angle in
-                            zip(xs,ys,np.arange(steps),zs,direction)]
+    data = [(x,y,z,isOffset,angle,name+"/point"+str(i)) for x,y,z,angle,i in
+                            zip(xs,ys,zs,direction,np.arange(steps))]
     fail = False
     for r in progress(pool.imap_unordered(workerCall,data),steps):
         if r == -1:
@@ -46,6 +49,14 @@ def _genPath(xs,ys,zs,name,isOffset=True):
     return 0     
 
 def processData(filename,crop=[0,0],outName=None,style="gpx"):
+    xs, ys, zs = loadData(filename, crop, style)
+    if len(xs) == 0:
+        return -1
+    if outName is None:
+        outName = filename[:-4]
+    return _genPath(xs,ys,zs,outName,False)   
+
+def loadData(filename, crop = [0,0], style = "gpx"):
     if style == "gpx":
         lons,lats,zs,outName = _loadGpx(filename,crop)
         xs,ys = gpsToXY(lons,lats)
@@ -53,14 +64,14 @@ def processData(filename,crop=[0,0],outName=None,style="gpx"):
         lons,lats,zs = _loadDst(filename,crop)
         xs,ys = gpsToXY(lons,lats)
     elif style == "xyz":
-        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
+        data = np.loadtxt(filename)
+        n = len(data)
+        xs,ys,zs = data[crop[0]:n-crop[1]].swapaxes(0,1)
     else:
         print "Format not recognised. should be 'gpx', 'dst' or 'xyz'"
-        return -1
-    if outName is None:
-        outName = filename[:-4]
-    return _genPath(xs,ys,zs,outName,False)   
-
+        xs, ys, zs = np.array([[],[],[]])
+    return xs, ys, zs
+    
     
 def _loadGpx(filename,crop=[0,0],outName=None):
     try:
@@ -95,15 +106,14 @@ def _loadGpx(filename,crop=[0,0],outName=None):
 def _loadDst(filename,crop=[0,0],noData=0.0):
     """Loads a given .dst file, cropping the first crop[0] values and last
     crop[1]. any entry with z = noData will be removed."""
-    data = np.loadtxt(filename).swapaxes(0,1)
+    data = np.loadtxt(filename)
     n = len(data)
-    data = data[crop[0]:n-crop[1]]
+    data = data[crop[0]:n-crop[1]].swapaxes(0,1)
     zs = data[2]
     m = zs != noData
     zs = zs[m]
     lats = data[0][m]
     lons = data[1][m]
-    
     return lons,lats,zs
 
 _northProj = pyproj.Proj("+proj=ups")
@@ -127,16 +137,8 @@ def showPath(filename,crop=[0,0],style="gpx"):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 
-    if style == "gpx":
-        lons,lats,zs = _loadGpx(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "dst":
-        lons,lats,zs = _loadDst(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "xyz":
-        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
-    else:
-        print "Format not recognised. should be 'gpx' or 'dst'"
+    xs, ys, zs = loadData(filename, crop, style)
+    if len(xs) == 0:
         return -1
     
     fig = plt.figure()
@@ -151,16 +153,8 @@ def showAboveGround(filename,crop=[0,0],style="gpx"):
     from matplotlib import cm
     import viewshed
     
-    if style == "gpx":
-        lons,lats,zs = _loadGpx(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "dst":
-        lons,lats,zs = _loadDst(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "xyz":
-        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
-    else:
-        print "Format not recognised. should be 'gpx' or 'dst'"
+    xs, ys, zs = loadData(filename, crop, style)
+    if len(xs) == 0:
         return -1
 
     with h5py.File("maps.hdf5","r") as f:
@@ -181,16 +175,8 @@ def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
-    if style == "gpx":
-        lons,lats,zs = _loadGpx(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "dst":
-        lons,lats,zs = _loadDst(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "xyz":
-        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
-    else:
-        print "Format not recognised. should be 'gpx' or 'dst'"
+    xs, ys, zs = loadData(filename, crop, style)
+    if len(xs) == 0:
         return -1
 
     with h5py.File("maps.hdf5","r") as f:
@@ -229,20 +215,10 @@ def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
 def checkValid(filename,crop = [0,0],style="gpx"):
     """Indicate if any of the map is undefined within 3km (current fixed range) of a point on the path.
     Also highlights if the map is undefined directly beneath any points on the path."""
-    if style == "gpx":
-        lons,lats,zs = _loadGpx(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "dst":
-        lons,lats,zs = _loadDst(filename,crop)
-        xs,ys = gpsToXY(lons,lats)
-    elif style == "xyz":
-        xs,ys,zs = np.loadtxt(filename).swapaxes(0,1)
-    else:
-        print "Format not recognised. should be 'gpx' or 'dst'"
+    xs, ys, zs = loadData(filename, crop, style)
+    if len(xs) == 0:
         return -1
-
-
-
+    
     with h5py.File("maps.hdf5","r") as f:
         heightmap = f["heightmap"][()]
         left,low,cellSize = f["meta"][()]
