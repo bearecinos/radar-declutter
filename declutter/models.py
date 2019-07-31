@@ -201,8 +201,24 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
 models = [rayModel,ray2Model,specular2Model,specular4Model]
 titles = ["Ray tracing n=1","Ray tracing n=2","sin(theta)^2","sin(theta)^4"]
 
-def compare(name,adjusted=False,wave=GaussianDot()):
-    returnData = []
+def compare(name,adjusted=False,wave=GaussianDot(),save=None):
+    '''Plots the radargram for the points in the given directory once for each
+    model given in the models list. Adjusted aligns the y-axis by elevation
+    rather than timing. The wave used by the model can also be changed and setting
+    "save" to a string means the plot will be saved to that location.
+
+    Parameters
+
+    name - string : directory to look in for point data. Must contain no other
+                    files or directories.
+    adjusted - bool : indicates that the responses from each radar point should
+                      be aligned vertically. i.e. If the radar took two samples
+                      at the same coordinates but different elevations, the
+                      response from the surface directly below would be at the
+                      same point on the plot for both samples.
+    wave - Wave instance : the wave to convolve over the response.
+    save - string (optional) : the name of the file to save the radargram in.
+    '''
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=(12,8))
     try:
@@ -211,39 +227,34 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
     heights = []
-        
+    returnData = np.full((len(models),len(files),_steps),0,float) # 3D - many plots
+    
+    p = mp.Pool(mp.cpu_count())
+    data = [(i,name+"/"+files[i],wave,models) for i in range(len(files))]
+
+    for i, h, ars in progress(p.imap_unordered(worker,data),len(files)):
+        # need to handle case where result is invalid: i = -1
+        returnData[:,i] = ars
+        heights.append(h)
+    p.close()
+
+    highest,lowest = 0,0
+    if adjusted:
+        highest = max(heights)
+        lowest = min(heights)
+        draw = np.full((len(models),n,_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
+        for i in range(len(files)):
+            start = int((highest-heights[i])/_SPACE_GRANULARITY)
+            draw[:,i,start:start+_steps] = returnData[:,i]
+        returnData = draw
+
     cells = int(np.ceil(np.sqrt(len(models))))*110
+    ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
+    
     for j in range(len(models)):
         plt.subplot(cells+j+1)
-        out = np.full((len(files),_steps),0,float)
-
-        # Bit to parallelize
-        # Note - must pass actual function, not a lambda expression
-        p = mp.Pool(mp.cpu_count())
-        data = [(i,name+"/"+files[i],models[j],wave) for i in range(len(files))] 
-        for i,h,ar in progress(p.imap_unordered(worker,data),len(files)):
-            heights.append(h)
-            out[i] = ar
-
-        if adjusted:
-            highest = max(heights)
-            lowest = min(heights)
-            draw = np.full((len(files),_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
-            for i in range(len(files)):
-                start = int((highest-heights[i])/_SPACE_GRANULARITY)
-                draw[i][start:start+_steps] = out[i]
-        else:
-            draw = out
-            highest, lowest = 0, 0
-        ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
         plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
-        # Clipping
-        #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
-
-        draw = np.swapaxes(draw,0,1)
-        returnData.append(draw)
-        # TODO: no longer want MidNorm? # norm=MidNorm(0)
-        # mean is about 10^-10 for GaussianDot anyway
+        draw = np.swapaxes(returnData[j],0,1)
         plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
         # normalise data
         #draw = (draw-np.amin(draw))/(np.amax(draw)-np.amin(draw))
@@ -252,16 +263,24 @@ def compare(name,adjusted=False,wave=GaussianDot()):
         #plt.pcolormesh(np.arange(len(files)), ys, draw,cmap="Greys") # alternative cmap is "RdBu_r" where +ve = red
         plt.title(titles[j])
         plt.colorbar()
-        print "Plot complete: "+titles[j]
+    if save is not None:
+        print "saving"
+        plt.savefig(save)
     plt.show()
     return returnData
 
 def worker(args):
-    i, name, model, wave = args
+    i,name,wave,models = args
     with h5py.File(name,"r") as f:
         h = f["meta"][2]
     distance,angle,theta,phi = loadArrays(name)
-    return i, h, processSlice(distance,angle,theta,phi,model,wave) 
+
+    ars = np.full((len(models),_steps),0,float)
+    for j in range(len(models)):
+        ars[j] = processSlice(distance,angle,theta,phi,models[j])
+    return i, h, ars
+
+
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form

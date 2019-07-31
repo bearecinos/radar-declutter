@@ -133,6 +133,9 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
             keeps the original size. Must be a multiple of the original size.
         outDir string (optional) : the directory to place projected or resampled rasters in
             if created. By default, will be placed in current directory."""
+    if not os.path.exists(outDir):
+        os.makedirs(outDir)
+
     arcpy.env.overwriteOutput = True
     arcpy.env.workspace = os.getcwd()
     # projected and resampled if required

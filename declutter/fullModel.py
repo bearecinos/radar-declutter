@@ -19,13 +19,12 @@ _steps = models._steps
 reflectionModels = models.models
 titles = models.titles
 
-def processData(filename,crop=[0,0],outName=None,style="gpx",adjusted=False):
+def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=True):
     xs, ys, zs = path.loadData(filename, crop, style)
     if len(xs) == 0:
         return -1
-    
-    if outName is None:
-        outName = filename[:-4]
+    if outName is None and save:
+        outName = filename[:-4]+".png"
     return _genPath(xs,ys,zs,outName,False,adjusted)
 
 def makeDirections(xs,ys):
@@ -72,23 +71,23 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     if adjusted:
         highest = max(heights)
         lowest = min(heights)
-        draw = np.full((len(models),n,_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
+        draw = np.full((len(reflectionModels),n,_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
         for i in range(n):
             start = int((highest-heights[i])/_SPACE_GRANULARITY)
             draw[:,i,start:start+_steps] = returnData[:,i]
         returnData = draw
     
     cells = int(np.ceil(np.sqrt(len(reflectionModels))))*110
+    ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
     for j in range(len(reflectionModels)):
         plt.subplot(cells+j+1)
-        ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
         plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
         draw = np.swapaxes(returnData[j],0,1)
         plt.contourf(np.arange(n), ys, draw, 100,norm=models.MidNorm(np.mean(draw)), cmap="Greys")
         plt.title(titles[j])
         plt.colorbar()
-        
-    plt.savefig(name+".png")
+    if name is not None:
+        plt.savefig(name)
     plt.show()
     return returnData
 

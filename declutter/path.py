@@ -48,7 +48,7 @@ def _genPath(xs,ys,zs,name,isOffset=True):
         return -1
     return 0     
 
-def processData(filename,crop=[0,0],outName=None,style="gpx"):
+def processData(filename,crop=[0,0],outName=None,style=None):
     xs, ys, zs = loadData(filename, crop, style)
     if len(xs) == 0:
         return -1
@@ -56,7 +56,14 @@ def processData(filename,crop=[0,0],outName=None,style="gpx"):
         outName = filename[:-4]
     return _genPath(xs,ys,zs,outName,False)   
 
-def loadData(filename, crop = [0,0], style = "gpx"):
+def loadData(filename, crop = [0,0], style = None):
+    if style is None:
+        if filename[-3:] == "dst":
+            style = "dst"
+        elif filename[-3:] == "xyz":
+            style = "xyz"
+        else:
+            style = "gpx"
     if style == "gpx":
         lons,lats,zs,outName = _loadGpx(filename,crop)
         xs,ys = gpsToXY(lons,lats)

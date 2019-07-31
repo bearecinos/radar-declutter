@@ -5,6 +5,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 def loadArcpy():
-    import declutter.makeArrays as makeArrays
+    """makeArrays becomes visible to call from. This will import arcpy."""
+    import makeArrays
 
 __all__ = ["changeSize","models","path","pointData","loadArcpy"]    
