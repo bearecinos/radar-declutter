@@ -13,12 +13,6 @@ import pointData
 import viewshed
 import matplotlib.pyplot as plt
 
-_MAXDIST = models._MAXDIST
-_SPACE_GRANULARITY = models._SPACE_GRANULARITY
-_steps = models._steps
-reflectionModels = models.models
-titles = models.titles
-
 def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=True):
     xs, ys, zs = path.loadData(filename, crop, style)
     if len(xs) == 0:
@@ -48,6 +42,12 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     isOffset boolean (optional) : whether then given z coordinates are altitude or relative to the ground. Default is relative."""
     direction = makeDirections(xs,ys)
     n = len(xs)
+
+    _MAXDIST = models._MAXDIST
+    _SPACE_GRANULARITY = models._SPACE_GRANULARITY
+    _steps = models._steps
+    reflectionModels = models.models
+    titles = models.titles
     
     returnData = np.full((len(reflectionModels),n,_steps),0,float) # 3D - many plots
     plt.rcParams['axes.formatter.limits'] = [-4,4]
@@ -97,7 +97,7 @@ def worker(args): # x,y,z,i,offset,angle,models array
 
     _,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
                                                                   isOffset,angle)
-    ars = np.full((len(reflectionModels),_steps),0,float)
+    ars = np.full((len(reflectionModels),models._steps),0,float)
     for j in range(len(reflectionModels)):
         ars[j] = models.processSlice(dist,incidence,theta,phi,reflectionModels[j])
 

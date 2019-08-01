@@ -18,11 +18,11 @@ _SetupRun = False
 _NODATA = np.nan
 
 
-def Setup(maps="maps.hdf5"): 
+def Setup(): 
     """Loads the full numpy arrays to be cropped for each point."""
     global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize, _cropSize
 
-    with h5py.File(maps,"r") as f:
+    with h5py.File('maps.hdf5',"r") as f:
         _fullHeightmap = f["heightmap"][()]
         _fullSlope = f["slope"][()]
         _fullAspect = f["aspect"][()]
@@ -163,7 +163,9 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
 def store(path,vis,dist,incidence,x,y,elevation,antennaDir=None,theta=None,phi=None):
     '''Expects all arrays except vis to have already been reduced by generateMaps()
     i.e. 1D array of only valid points.'''
-    with h5py.File(path+".hdf5","w") as f:
+    if not path[-4:] == ".hdf5":
+        path = path+".hdf5"
+    with h5py.File(path,"w") as f:
         f["visible"] = vis
         f["distance"] = dist
         f["incidence"] = incidence

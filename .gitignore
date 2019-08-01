@@ -2,5 +2,8 @@
 docs/database/info/
 docs/database/projected/
 docs/database/resampled/
-docs/demoData/pathData/
+docs/database/*.xml
+docs/database/*.ovr
+docs/demoData/points/
+docs/maps.hdf5
 test/

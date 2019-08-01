@@ -9,10 +9,6 @@
     <Description>projected</Description>
     <Metadata>
       <MDI key="RepresentationType">ATHEMATIC</MDI>
-      <MDI key="STATISTICS_COVARIANCES">35821.02465879322</MDI>
-      <MDI key="STATISTICS_EXCLUDEDVALUES"></MDI>
-      <MDI key="STATISTICS_SKIPFACTORX">1</MDI>
-      <MDI key="STATISTICS_SKIPFACTORY">1</MDI>
     </Metadata>
   </PAMRasterBand>
 </PAMDataset>
