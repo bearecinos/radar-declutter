@@ -16,6 +16,10 @@ import h5py
 # Dist assuming 3x10^8. If basing on radargram, account for 1.67x10^8
 # i.e. 1km at ice speed is actually about 1.8km away
 
+figsize = (12,6.8)
+def setFigSize(x,y):
+    figsize = (x,y)
+
 def setTimeStep(dt = 1.25e-8):
     global _GRANULARITY, _SPACE_GRANULARITY
     _GRANULARITY = dt
@@ -45,8 +49,8 @@ def _setSteps():
     global _steps
     _steps = int(_MAXTIME/_GRANULARITY)
 
-#_MAXDIST = 3000.0
-_MAXDIST = 701 * 1.25e-8 * 1.5e8 # from sample radargram
+_MAXDIST = 3000.0
+#_MAXDIST = 701 * 1.25e-8 * 1.5e8 # from sample radargram
 _GRANULARITY = 1.25e-8 # 10ns
 _SPACE_GRANULARITY = _GRANULARITY*1.5e8
 _MAXTIME = 2*_MAXDIST/3e8
@@ -105,6 +109,15 @@ class GaussianDot:
     def amplitude(self,t):
         return (-np.exp(0.5)*2*np.pi*_freq*(t-self.delt)*
                 np.exp(-2*np.pi**2*_freq**2*(t-self.delt)**2))
+# looks poor for one dataset but good for other?
+class Ricker:
+    delt = 2.0/(3.0*_freq)
+    align = 0.0
+    def amplitude(self,t):
+        t = t - self.delt
+        return (1-2*np.pi*np.pi*t*t*_freq*_freq)*np.exp(
+            -np.pi*np.pi*_freq*_freq*t*t)
+
 class Constant:
     delt = 0.0
     align = 0.0
@@ -192,13 +205,12 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
 
     return convol
 
-#models = [lambertian,lambda x : Minnaert(x,2), raySpecular, lambda x : raySpecular(x,2)]
-#titles = ["diffuse", "Minnaert k=2", "Specular n=1", "Specular n=2"]
-models = [rayModel,ray2Model,specular2Model,specular4Model]
-titles = ["Ray tracing n=1","Ray tracing n=2","sin(theta)^2","sin(theta)^4"]
+
+models = [rayModel]#,ray2Model,specular2Model,specular4Model]
+titles = ["Ray tracing n=1"]#,"Ray tracing n=2","sin(theta)^2","sin(theta)^4"]
 
 def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
-            titles=titles,directional=direcNone):
+            titles=titles,directional=direcNone,display=True):
     '''Plots the radargram for the points in the given directory once for each
     model given in the models list. Adjusted aligns the y-axis by elevation
     rather than timing. The wave used by the model can also be changed and setting
@@ -220,7 +232,7 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
         in the same index in the models list.
     '''
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=(12,8))
+    plt.figure(figsize=figsize)
     try:
         files = listdir(name)
     except OSError as e:
@@ -242,7 +254,7 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     if adjusted:
         highest = max(heights)
         lowest = min(heights)
-        draw = np.full((len(models),n,_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
+        draw = np.full((len(models),len(files),_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
         for i in range(len(files)):
             start = int((highest-heights[i])/_SPACE_GRANULARITY)
             draw[:,i,start:start+_steps] = returnData[:,i]
@@ -266,7 +278,8 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     if save is not None:
         print "saving"
         plt.savefig(save)
-    plt.show()
+    if display:
+        plt.show()
     return returnData
 
 def worker(args):
@@ -284,7 +297,7 @@ def worker(args):
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=(12,8))
+    plt.figure(figsize=figsize)
     distance,angle,theta,phi = loadArrays(filename)
     ys = processSlice(distance,angle,theta,phi,intensityModel=raySpecular,wave=wave)
     # Clipping
@@ -297,7 +310,7 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
 def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,
                directional = direcNone, compareTo = None):
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=(10.5,5.5))
+    plt.figure(figsize=figsize)
     try:
         files = listdir(name)
     except OSError as e:

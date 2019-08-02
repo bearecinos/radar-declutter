@@ -8,7 +8,7 @@ def load(args):
 
 def model(args):
     import fullModel, path, models
-    if args.out is not None and not args.files:
+    if (args.out is not None or args.view) and not args.files:
         print """Cannot set directory for intermediate files (-o/--out) unless also setting option
             to store these files (-f/--filles)."""
         return -1
@@ -20,7 +20,7 @@ def model(args):
                 args.out = args.filename[:-4]
             else:
                 args.out = args.filename
-        path.processData(args.filename,[args.start,args.end],args.out,args.type)
+        path.processData(args.filename,[args.start,args.end],args.out,args.type, args.view)
         if args.no and args.save is None:
             if "." in args.filename[-4:]:
                 args.save = args.filename[:-4]+".png"
@@ -64,11 +64,12 @@ if __name__ == "__main__":
     modelParse.add_argument("filename",help="Name of the path file to load.")
     modelParse.add_argument("-t","--type",choices=["gpx","dst","xyz"],help="""Specifies the file type, one of 'gpx', 'dst' or 'xyz'.
                             This is identified by the file extension if not given.""")
-    modelParse.add_argument("--start",type = int,default=0, help = "Can specify how many points to ignore from the start of the path.")
-    modelParse.add_argument("--end",type = int,default=0, help = "Can specify how many points to ignore from the end of the path.")
+    modelParse.add_argument("--start",type = int,default=0, help = "How many points to ignore from the start of the path.")
+    modelParse.add_argument("--end",type = int,default=0, help = "How many points to ignore from the end of the path.")
     modelParse.add_argument("-f","--files",action="store_true", help = "Store the intermediate data generated for each point.")
     modelParse.add_argument("-o","--out", help = "Specifies the directory to store the intermediate point data in.") #  only valid if -f selected
     exclusive = modelParse.add_mutually_exclusive_group()
+    modelParse.add_argument("-v","--view",action="store_true", help = "Location of visible points stored too, helpful for analysis.") # only valid if -f
     exclusive.add_argument("-n","--no",action="store_false", help = "Do not save the radargram produced, but still displays it.")
     exclusive.add_argument("-s","--save", help = "The name to save the radargram as.")
     modelParse.set_defaults(func=model)

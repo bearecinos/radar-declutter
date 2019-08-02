@@ -40,11 +40,6 @@ def _getDirections(vis,pointx,pointy,cropLeft,cropLow):
     directions[vis==1] = 180.0/math.pi * np.arctan2(pointx-cropLeft-_CellSize*x[vis==1], pointy-cropLow-(_cropSize-y[vis==1]-1)*_CellSize)+180
     return directions
 
-def _mcos(x):
-    return math.cos(math.radians(x))
-def _msin(x):
-    return math.sin(math.radians(x))
-
 # generates map of incidence angle for all visible surfaces
 def _makeIncidence(vis,elevation,heightmap,trueDist,distances,slope,aspect,directions):
     """Generates the incidence angle from the radar for each point of the raster. Final array is in radians."""
@@ -124,16 +119,20 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     pointCoords = np.array([(pointx-cropLeft)/_CellSize,(pointy-cropLow)/_CellSize])
     groundHeight = viewshed.quadHeight(heightmap,np.array([pointCoords[0]]),np.array([cropHeight-1.0-pointCoords[1]]))[0]
 
+    theta,phi = None, None
+    
     if np.isnan(groundHeight): # Assumes use of NaN, have to use different checks to regular values
-        # not above mapped ground so don't generate anything
-        # could still generate if not isOffset but wouldn't have sensible full map
-        return 0
+        # not above mapped ground so don't generate anything, as if nothing visible
+        # TODO: replace returning above_ground as elevation with NaN then check for in other methods
+        if antennaDir is not None:
+            theta, phi = np.empty(0), np.empty(0)
+        return np.full(heightmap.shape,0,int), np.empty(0), np.empty(0), theta, phi, above_ground
     
     if isOffset:
         elevation = groundHeight+above_ground
     else:
         elevation = above_ground
-
+    
     ys, xs = np.indices(heightmap.shape,float)
     ys = cropHeight - 1 - ys
     xs = cropLeft + xs*_CellSize
@@ -142,7 +141,7 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
 
     distances = _makeDist2D(mask,pointx,pointy,cropLeft,cropLow)
     directions = _getDirections(mask,pointx,pointy,cropLeft,cropLow)
-
+    
     trueDist = _makeDistance(mask,distances,heightmap,elevation)
     
     incidence = _makeIncidence(mask,elevation,heightmap,trueDist,distances,slope,aspect,directions)
@@ -152,7 +151,7 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     vis = viewshed.viewshed(heightmap,(pointx-cropLeft)/_CellSize, (pointy-cropLow)/_CellSize,mask,
                             elevation,False,gridsize=_CellSize) # return bool array
     
-    theta,phi = None, None
+    
     if antennaDir is not None:
         theta, phi = _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDir)
         theta, phi = theta[vis], phi[vis]
@@ -160,13 +159,14 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     return vis,trueDist,incidence,theta,phi,elevation
 
 
-def store(path,vis,dist,incidence,x,y,elevation,antennaDir=None,theta=None,phi=None):
+def store(path,dist,incidence,x,y,elevation,vis=None,antennaDir=None,theta=None,phi=None):
     '''Expects all arrays except vis to have already been reduced by generateMaps()
     i.e. 1D array of only valid points.'''
     if not path[-4:] == ".hdf5":
         path = path+".hdf5"
     with h5py.File(path,"w") as f:
-        f["visible"] = vis
+        if vis is not None:
+            f["visible"] = vis
         f["distance"] = dist
         f["incidence"] = incidence
         if antennaDir is not None:

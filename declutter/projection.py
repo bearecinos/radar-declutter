@@ -35,6 +35,10 @@ def project(source, systemName, saveAs = "projected"):
         sr = arcpy.SpatialReference(systemName)
     arcpy.env.workspace = os.getcwd()
     arcpy.env.overwriteOutput = True
-    arcpy.ProjectRaster_management(source,saveAs,sr,"CUBIC")
+    try:
+        arcpy.ProjectRaster_management(source,saveAs,sr,"CUBIC")
+    except arcpy.ExecuteError as e:
+        if "attempted on an empty geometry" in e.message:
+            raise RuntimeError("arcpy error while projecting, check input latitude and longitude.")
     return arcpy.Raster(saveAs)
 

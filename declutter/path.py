@@ -12,11 +12,19 @@ import os
 
 def workerCall(args):
     # args = (x,y,z,isOffset,angle,pathName)
-    vis,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-1])
-    return pointData.store(args[5],vis,dist,incidence,args[0],args[1],
-                           elevation, args[4], theta,phi)
+    result = pointData.generateMaps(*args[:-2])
+    if type(result) == int: # 0 for noData, -1 for error
+        return result
+    vis,dist,incidence,theta,phi,elevation = result
+
+    if args[5]:
+        return pointData.store(args[6],dist,incidence,args[0],args[1],
+                           elevation, vis, args[4], theta, phi)
+    else:
+        return pointData.store(args[6], dist,incidence,args[0],args[1],
+                           elevation, None, args[4], theta, phi)
     
-def _genPath(xs,ys,zs,name,isOffset=True):
+def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True):
     global pool
     """Generates path data for the specified points, including antenna orientation data.
     Parameters:
@@ -35,8 +43,8 @@ def _genPath(xs,ys,zs,name,isOffset=True):
     direction[m] = 180.0/np.pi*np.arctan2(xs[m2]-xs[m3], ys[m2]-ys[m3])+180.0
     steps = len(xs)
     pool = mp.Pool(mp.cpu_count())
-    data = [(x,y,z,isOffset,angle,name+"/point"+str(i)) for x,y,z,angle,i in
-                            zip(xs,ys,zs,direction,np.arange(steps))]
+    data = [(x,y,z,isOffset,angle,save_visible,name+"/point"+str(i)) for
+             x,y,z,angle,i in zip(xs,ys,zs,direction,np.arange(steps))]
     fail = False
     for r in progress(pool.imap_unordered(workerCall,data),steps):
         if r == -1:
@@ -44,17 +52,17 @@ def _genPath(xs,ys,zs,name,isOffset=True):
             break
     pool.close()
     if fail:
-        print "Failed to generate one or more points using pointData.generateMaps"
+        print "Failed to generate one or more points with pointData.generateMaps"
         return -1
     return 0     
 
-def processData(filename,crop=[0,0],outName=None,style=None):
+def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True):
     xs, ys, zs = loadData(filename, crop, style)
     if len(xs) == 0:
         return -1
     if outName is None:
         outName = filename[:-4]
-    return _genPath(xs,ys,zs,outName,False)   
+    return _genPath(xs,ys,zs,outName,False,save_visible)   
 
 def loadData(filename, crop = [0,0], style = None):
     if style is None:
@@ -239,17 +247,22 @@ def checkValid(filename,crop = [0,0],style="gpx"):
     xBounds = [left+3000,right-3000]
     yBounds = [low+3000,high-3000]
     
+    ar = np.full(len(xs),True)
+    
     notFullRange = 0
     undefinedGround = 0
-    for x,y in zip(xs,ys):
+    for i in range(len(xs)):
+        x,y  = xs[i], ys[i]
         # points within 3km
         m = ((X-x)**2+(Y-y)**2)<3000**2
         if np.any(np.isnan(heightmap[m])) or x<xBounds[0] or x>xBounds[1] or y<yBounds[0] or y>yBounds[1]:
             notFullRange += 1
         # points used for interpolating ground height
-        m = ((X-x)**2 <= 1) & ((Y-y)**2 <= 1)
+        m = ((X-x)**2 <= cellSize**2) & ((Y-y)**2 <= cellSize**2)
         if np.any(np.isnan(heightmap[m])) or x < left or x > right or y < low or y > high:
             undefinedGround += 1
-    print "{0} of {1} points have part of range undefined.".format(notFullRange,n)
-    print "{0} of {1} points are above an undefined part of the map.".format(undefinedGround,n)    
+            ar[i] = False
+    print "{0} of {1} points have part of range undefined.".format(notFullRange,len(xs))
+    print "{0} of {1} points are above an undefined part of the map.".format(undefinedGround,len(xs))
+    return ar
     
