@@ -244,10 +244,14 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     p = mp.Pool(mp.cpu_count())
     data = [(i,name+"/"+files[i],wave,models,directional) for i in range(len(files))]
 
-    for i, h, ars in progress(p.imap_unordered(worker,data),len(files)):
-        # need to handle case where result is invalid: i = -1
-        returnData[:,i] = ars
-        heights.append(h)
+    try:
+        for i, h, ars in progress(p.imap_unordered(worker,data),len(files)):
+            returnData[:,i] = ars
+            heights.append(h)
+    except IOError as e:
+        p.close()
+        print "\nError reading hdf5 file :\n"+e.message
+        return -1
     p.close()
 
     highest,lowest = 0,0
@@ -267,6 +271,7 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
         plt.subplot(cells+j+1)
         plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
         draw = np.swapaxes(returnData[j],0,1)
+  
         plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
         # normalise data
         #draw = (draw-np.amin(draw))/(np.amax(draw)-np.amin(draw))
@@ -295,17 +300,20 @@ def worker(args):
 
 
 
-def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot()):
-    plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=figsize)
-    distance,angle,theta,phi = loadArrays(filename)
+def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
+    try:
+        distance,angle,theta,phi = loadArrays(filename)
+    except IOError:
+        return fileError(filename)
     ys = processSlice(distance,angle,theta,phi,intensityModel=raySpecular,wave=wave)
     # Clipping
     #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
-    xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
-    plt.plot(xs,ys,color="black")
-    plt.fill_between(xs,ys,0,where=(ys>0),color="black")
-    plt.show()
+    if display:
+        xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
+        plt.plot(xs,ys,color="black")
+        plt.fill_between(xs,ys,0,where=(ys>0),color="black")
+        plt.show()
+    return ys
 
 def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,
                directional = direcNone, compareTo = None):
@@ -323,9 +331,13 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     out = np.full((len(files),_steps),0,float)
     for i in range(len(files)):
         filename = files[i]
-        with h5py.File(name+"/"+filename,"r") as f:
-            heights.append(f["meta"][2])
-        distance,angle,theta,phi = loadArrays(name+"/"+filename)
+        try:
+            with h5py.File(name+"/"+filename,"r") as f:
+                heights.append(f["meta"][2])
+            distance,angle,theta,phi = loadArrays(name+"/"+filename)
+        except IOError as e:
+            print "Could not read h5py file : "+name+"/"+filename
+            return -1
         out[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,rFactor,directional)  
 
     if adjusted:
@@ -361,6 +373,8 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     ######## Re-enable plotting once done with tests
     #plt.show()
     ########
+    if compareTo is None:
+        return draw
     a = draw.reshape(-1)
     b = compareTo.reshape(-1)
     return np.corrcoef(a,b)[0,1]
@@ -396,6 +410,6 @@ def showDirectionality(directional=direcBroad,twoD = False):
     plt.show()
     
 def fileError(f):
-    print "Error in models.py, could not find file: "+f
-    print "Please check path/filename entered correct and data exists"
+    print "Error in models.py, could not read file/directory: "+f
+    print "Please check path/filename entered correctly and data exists"
     return -1

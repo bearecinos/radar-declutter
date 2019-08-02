@@ -1,8 +1,9 @@
 """Package for modelling the radar response of a surface along a path.
-__init__ just declares which modules visible with import * .
-lazy_import makes it seem like arcpy is available but really just wrapper
-function which is imported if needed. Hence avoid import errors if not
-available and don't have to wait for import if never used."""
+Warnings are disabled as getting False from testing less/greater than on a
+NaN is the desired result.
+lazy_import makes it seem like arcpy is available but is just wrapper
+function which imports if needed. This avoids import errors if not
+available and the slow setup time for arcpy if it is never needed."""
 
 import warnings
 # ignore warnings when comparing arrays containing NaNs.

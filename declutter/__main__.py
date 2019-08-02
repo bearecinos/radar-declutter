@@ -1,41 +1,50 @@
+"""Provides a way of running the module by command line arguments, using the
+three methods defined below. The -h option provides information on the whole
+interface and also on each of the methods.
+"""
 import argparse
 
 def load(args):
+    """Converts a raster to numpy format in maps.hdf5, projecting and resampling
+    if needed."""
     print "Loading..."
     import makeArrays
-    makeArrays.makeAll(args.filename,args.latitude,args.longitude,args.cellSize,args.out)
-    return 0
+    return makeArrays.makeAll(args.filename,args.latitude,args.longitude,args.cellSize,args.out)
 
 def model(args):
+    """Produces a radargram from a gps path. The intermediate data generated can
+    be saved to make displaying the result faster if run several times, say to
+    test variations on the model."""
     import fullModel, path, models
     if (args.out is not None or args.view) and not args.files:
         print """Cannot set directory for intermediate files (-o/--out) unless also setting option
             to store these files (-f/--filles)."""
         return -1
     if not args.files: # no intermediate files
-        fullModel.processData(args.filename,[args.start,args.end],args.save,args.type,save=args.no)
+        return fullModel.processData(args.filename,[args.start,args.end],args.save,args.type,save=args.no)
     else: # intermediate files
         if args.out is None:
             if "." in args.filename[-4:]:
                 args.out = args.filename[:-4]
             else:
                 args.out = args.filename
-        path.processData(args.filename,[args.start,args.end],args.out,args.type, args.view)
+        if path.processData(args.filename,[args.start,args.end],args.out,args.type, args.view):
+            print "Could not generate point data files."
+            return -1
         if args.no and args.save is None:
             if "." in args.filename[-4:]:
                 args.save = args.filename[:-4]+".png"
             else:
                 args.save = args.filename+".png"
-        models.compare(args.out,save=args.save)
-    return 0
+        return models.compare(args.out,save=args.save)
 
 def display(args):
+    """Produces a radargram from existing intermediate data."""
     import models
     if args.no and args.save is None:
         print "set"
         args.save = args.directory + ".png"
-    models.compare(args.directory,args.adjusted,save=args.save)
-    return 0
+    return models.compare(args.directory,args.adjusted,save=args.save)
 
 if __name__ == "__main__":   
     parser = argparse.ArgumentParser(prog="python -m declutter")

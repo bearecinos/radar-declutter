@@ -94,10 +94,8 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     isOffset boolean (optional) : Indicates the given 'above_ground' is relative to the ground. Default = True.
     antennaDir float (optional) : The direction the radar was facing in degrees. By default, not used.    
     """
-    
     if not _SetupRun:
-        if Setup():
-            return -1
+        Setup()
     
     # rounds down the corner
     pointCoords = [int((pointx-left)/_CellSize),int((pointy-low)/_CellSize)]
@@ -164,15 +162,19 @@ def store(path,dist,incidence,x,y,elevation,vis=None,antennaDir=None,theta=None,
     i.e. 1D array of only valid points.'''
     if not path[-4:] == ".hdf5":
         path = path+".hdf5"
-    with h5py.File(path,"w") as f:
-        if vis is not None:
-            f["visible"] = vis
-        f["distance"] = dist
-        f["incidence"] = incidence
-        if antennaDir is not None:
-            f["antennaTheta"] = theta
-            f["antennaPhi"] = phi
-        f["meta"] = np.array([x,y,elevation,antennaDir])
+    try:
+        with h5py.File(path,"w") as f:
+            if vis is not None:
+                f["visible"] = vis
+            f["distance"] = dist
+            f["incidence"] = incidence
+            if antennaDir is not None:
+                f["antennaTheta"] = theta
+                f["antennaPhi"] = phi
+            f["meta"] = np.array([x,y,elevation,antennaDir])
+    except IOError as e:
+        print "Could not write to hdf5 file : "+e.message
+        return -1
     return 0
     
 if __name__=="__main__" and False:

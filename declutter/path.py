@@ -12,10 +12,7 @@ import os
 
 def workerCall(args):
     # args = (x,y,z,isOffset,angle,pathName)
-    result = pointData.generateMaps(*args[:-2])
-    if type(result) == int: # 0 for noData, -1 for error
-        return result
-    vis,dist,incidence,theta,phi,elevation = result
+    vis,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-2])
 
     if args[5]:
         return pointData.store(args[6],dist,incidence,args[0],args[1],
@@ -46,18 +43,24 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True):
     data = [(x,y,z,isOffset,angle,save_visible,name+"/point"+str(i)) for
              x,y,z,angle,i in zip(xs,ys,zs,direction,np.arange(steps))]
     fail = False
-    for r in progress(pool.imap_unordered(workerCall,data),steps):
-        if r == -1:
-            fail = True
-            break
-    pool.close()
-    if fail:
-        print "Failed to generate one or more points with pointData.generateMaps"
+    try:
+        for r in progress(pool.imap_unordered(workerCall,data),steps):
+            pass
+    except IOError:
+        pool.close()
+        print "\nError reading 'maps.hdf5' :\n" + e.message
         return -1
+    pool.close()
     return 0     
 
 def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True):
-    xs, ys, zs = loadData(filename, crop, style)
+    try:
+        xs, ys, zs = loadData(filename, crop, style)
+    except IOError:
+        print "Could not load data from file : "+filename
+        if style is not None:
+            print "Is "+style+" the correct format?"
+        return -1
     if len(xs) == 0:
         return -1
     if outName is None:
@@ -79,7 +82,11 @@ def loadData(filename, crop = [0,0], style = None):
         lons,lats,zs = _loadDst(filename,crop)
         xs,ys = gpsToXY(lons,lats)
     elif style == "xyz":
-        data = np.loadtxt(filename)
+        try:
+            data = np.loadtxt(filename)
+        except ValueError as e:
+            print "Could not read as xyz file: " + e.message
+            raise IOError("Could not read file: "+filename)
         n = len(data)
         xs,ys,zs = data[crop[0]:n-crop[1]].swapaxes(0,1)
     else:
@@ -89,12 +96,7 @@ def loadData(filename, crop = [0,0], style = None):
     
     
 def _loadGpx(filename,crop=[0,0],outName=None):
-    try:
-        root = ET.parse(filename).getroot()
-    except IOError:
-        print "Error in path.py, could not load file: "+filename
-        print "Check filename correct and data exists in gpx format."
-        return -1
+    root = ET.parse(filename).getroot()
     prefix = ""
     if root.get("targetNamespace") is not None:
         prefix = "{"+root.get("targetNamespace")+"}"
@@ -121,7 +123,11 @@ def _loadGpx(filename,crop=[0,0],outName=None):
 def _loadDst(filename,crop=[0,0],noData=0.0):
     """Loads a given .dst file, cropping the first crop[0] values and last
     crop[1]. any entry with z = noData will be removed."""
-    data = np.loadtxt(filename)
+    try:
+        data = np.loadtxt(filename)
+    except ValueError as e:
+        print "Could not read as dst file: " + e.message
+        raise IOError("Could not read file: "+filename)
     n = len(data)
     data = data[crop[0]:n-crop[1]].swapaxes(0,1)
     zs = data[2]
@@ -152,7 +158,11 @@ def showPath(filename,crop=[0,0],style="gpx"):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 
-    xs, ys, zs = loadData(filename, crop, style)
+    try:
+        xs, ys, zs = loadData(filename, crop, style)
+    except IOError:
+        print "Could not load data from file : "+filename
+        return -1
     if len(xs) == 0:
         return -1
     
@@ -162,13 +172,18 @@ def showPath(filename,crop=[0,0],style="gpx"):
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     plt.show()
+    return 0
 
 def showAboveGround(filename,crop=[0,0],style="gpx"):
     import matplotlib.pyplot as plt
     from matplotlib import cm
     import viewshed
     
-    xs, ys, zs = loadData(filename, crop, style)
+    try:
+        xs, ys, zs = loadData(filename, crop, style)
+    except IOError:
+        print "Could not load data from file : "+filename
+        return -1
     if len(xs) == 0:
         return -1
 
@@ -184,13 +199,18 @@ def showAboveGround(filename,crop=[0,0],style="gpx"):
     plt.plot(groundHeights,label="ground")
     plt.legend()
     plt.show()
+    return 0
     
 
 def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
-    xs, ys, zs = loadData(filename, crop, style)
+    try:
+        xs, ys, zs = loadData(filename, crop, style)
+    except IOError:
+        print "Could not load data from file : "+filename
+        return -1
     if len(xs) == 0:
         return -1
 
@@ -224,13 +244,18 @@ def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
     ax.plot_surface(X,Y,heightmap,facecolors=my_col,linewidth=0,antialiased=False)
     ax.plot(xs,ys,zs)
     plt.show()
+    return 0
 
 # Assumes NaN is undefined value, otherwise need to change equality test
 # (Can't use == for NaNs, need np.isnan(...) instead)
 def checkValid(filename,crop = [0,0],style="gpx"):
     """Indicate if any of the map is undefined within 3km (current fixed range) of a point on the path.
     Also highlights if the map is undefined directly beneath any points on the path."""
-    xs, ys, zs = loadData(filename, crop, style)
+    try:
+        xs, ys, zs = loadData(filename, crop, style)
+    except IOError:
+        print "Could not load data from file : "+filename
+        return -1
     if len(xs) == 0:
         return -1
     

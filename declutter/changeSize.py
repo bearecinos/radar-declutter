@@ -1,7 +1,16 @@
+"""Provides a method to resample the arrays stored in maps.hdf5."""
 import h5py
 
-def resize(cellsize): # keeps bottom right corner - a[-1:0] unchanged
-    """Changes size of an existing numpy array."""
+def resize(cellsize): 
+    """Changes the size of the cells in an existing numpy array. The lower left
+    corner is unchanged i.e. array[-1,0].
+    
+    Parameters
+    cellsize float : The size of each new cell in metres. This must be
+        a multiple of the original cell size.
+
+    Returns
+    0 if successful. -1 otherwise (due to incorrect cell size)."""
     with h5py.File("maps.hdf5","r+") as f:
         line = f["meta"][()]
         originalSize = line[-1]
