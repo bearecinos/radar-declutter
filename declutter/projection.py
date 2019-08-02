@@ -1,3 +1,5 @@
+"""Enables projection of an arcMap raster into a different coordinate system
+using arcpy."""
 import arcpy
 import numpy as np
 import utm
@@ -6,6 +8,9 @@ import os
 from errors import RasterError
 
 def determineSystem(lat,lon):
+    """Returns a string arcpy recognises as a spatial reference.
+    This wil be for the UTM zone of the provided coordinates, except if
+    they are near the poles, in which case the UPS system is used."""
     if lat > 83.5:
         return north
     if lat < -79.5:
@@ -29,6 +34,23 @@ prefix = 'Projected Coordinate Systems/UTM/WGS 1984/Northern Hemisphere/WGS 1984
 # possible only arcMap will know used coordinate system so need reference gps point
 
 def project(source, systemName, saveAs = "projected"):
+    """Converts the input raster to the given coordinate system. Note that this
+    operation is attempted even if the input raster is already in that coordinate
+    system.
+
+    Parameters:
+    source - string/Raster : The name/instance of the raster to project.
+    systemName - string/SpatialReference : The name/instance of the spatial
+        reference to project to. A string will be passed to arcpy to find
+        the corresponding spatial reference object.
+    saveAs - string (optional) : The name to save the projected raster as.
+        This will be 'projected' by default.
+        
+    Returns
+    The projected arcpy raster.
+    Raises RasterError if the projection cannot be performed. This is usually
+    because the wrong coordinate system has been provided.
+    """
     if type(source) == str:
         source = arcpy.Raster(source)
     sr = systemName

@@ -87,12 +87,30 @@ def _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDi
 def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None):
     """Produces rasters for which points are visible, their distance and incidence angles to the radar, and optionally antenna orientation data.
     Parameters:
-    pointx float : x-coordinate of point.
-    pointy float : y-coordinate of point.
-    path string : name of folder to save data in.
-    above_ground float (optional) : Either actual altitude of radar or elevation above ground. Default = 100.0.
-    isOffset boolean (optional) : Indicates the given 'above_ground' is relative to the ground. Default = True.
-    antennaDir float (optional) : The direction the radar was facing in degrees. By default, not used.    
+    pointx - float : x-coordinate of point.
+    pointy - float : y-coordinate of point.
+    path - string : name of folder to save data in.
+    above_ground - float (optional) : Either actual altitude of radar or elevation above ground. Default = 100.0.
+    isOffset - bool (optional) : Indicates the given 'above_ground' is relative to the ground. Default = True.
+    antennaDir - float (optional) : The direction the radar was facing in degrees. By default, not used.    
+
+    Returns
+    vis - 2D float array : An array of which points on the surface around
+        the radar were visible or not.
+    trueDist - float array : the distance in metres to every visible point.
+    incidence - float array : the surface incidence angle (in radians) of every
+        visible point.
+    theta, phi - float arrays : the direction to each visible point in spherical
+        coordinates, with the ends of the antenna being the poles. These will
+        be None if antennaDir was not given.
+    elevation - the elevation of the radar. Equal to above_ground when isOffset is
+        false, otherwise equal to above_ground plus the elevation of the ground
+        directly below the radar.
+
+    Note: If the elevation of the ground is undefined directly below the radar,
+        vis is set to all 0, empty arrays are returned for the others, and
+        above_ground is returned as the elevation, regardless of isOffset.
+        This method will raise an IOError if 'maps.hdf5' cannot be loaded.
     """
     if not _SetupRun:
         Setup()
@@ -158,8 +176,24 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
 
 
 def store(path,dist,incidence,x,y,elevation,vis=None,antennaDir=None,theta=None,phi=None):
-    '''Expects all arrays except vis to have already been reduced by generateMaps()
-    i.e. 1D array of only valid points.'''
+    """Saves the data generated for each point in a .hdf5 file.
+
+    Parameters:
+    path - string : Name of the file to save the data in. If it does not end in .hdf5 already,
+        this will be appended to the file name.
+    dist - float array : the distance in metres to every visible point.
+    incidence - float array : the surface incidence angle (in radians) of every
+        visible point.
+    x,y - floats : The coordinates of the point the data was generated for.
+    elevation - float : The elevation of the point the data was generated for.
+    vis - 2D int array (optional) : An array of which points on the surface around
+        the radar were visible or not. By default this is None, in which case it is not saved.
+    antennaDir - float (optional) : The bearing of the radar antenna. By default this is None
+        so is not saved, in which case theta and phi are also not saved.
+    theta, phi - float arrays : the direction to each visible point in spherical
+        coordinates, with the ends of the antenna being the poles. By default these
+        are None. These should be None iff antennaDir is None.
+    """
     if not path[-4:] == ".hdf5":
         path = path+".hdf5"
     try:

@@ -6,7 +6,8 @@ import argparse
 
 def load(args):
     """Converts a raster to numpy format in maps.hdf5, projecting and resampling
-    if needed."""
+    if needed.
+    Returns 0 if successful, else -1."""
     print "Loading..."
     import makeArrays
     return makeArrays.makeAll(args.filename,args.latitude,args.longitude,args.cellSize,args.out)
@@ -14,7 +15,8 @@ def load(args):
 def model(args):
     """Produces a radargram from a gps path. The intermediate data generated can
     be saved to make displaying the result faster if run several times, say to
-    test variations on the model."""
+    test variations on the model.
+    Returns 0 if successful, else -1."""
     import fullModel, path, models
     if (args.out is not None or args.view) and not args.files:
         print """Cannot set directory for intermediate files (-o/--out) unless also setting option
@@ -39,7 +41,8 @@ def model(args):
         return models.compare(args.out,save=args.save)
 
 def display(args):
-    """Produces a radargram from existing intermediate data."""
+    """Produces a radargram from existing intermediate data.
+    Returns 0 if successful, else -1."""
     import models
     if args.no and args.save is None:
         print "set"

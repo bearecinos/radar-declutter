@@ -1,3 +1,6 @@
+"""Takes a raster which can be viewed in arcMap and produces a slope and aspect
+array. The original raster and two new arrays are all saved in numpy format in
+'maps.hdf5'."""
 import arcpy
 import numpy as np
 from projection import *
@@ -10,7 +13,8 @@ _NODATA = np.nan
 
 def loadRaster(source):
     """Takes the name of a raster and returns the arcpy object.
-    Returns 1 if error trying to load raster."""
+    Returns custom RasterError if an issue occurs when loading the raster.
+    If the input is already a raster, this is returned directly."""
     if type(source) == arcpy.Raster:
         return source
     arcpy.env.workspace = os.getcwd()
@@ -30,8 +34,8 @@ def resample(raster,cellSize,outDir=None):
     outDir string : Directory to save resampled raster in. Not used if raster already correct size.
 
     Returns
-    Original raster if already correct size. Resampled raster if not correct size. -1 if input
-         cellSize is not multiple of original size."""
+    Original raster if already correct size. Resampled raster if not correct size. Raises RasterError
+    if cellSize is not multiple of original size."""
     if cellSize is None:
         return raster
     if outDir is None:
@@ -92,70 +96,135 @@ def _makeAspect(raster):
     arcpy.CheckInExtension("3D")
     return aspect
 
-# These 3 methods exist in case there are issues with the amount of
-# memory needed to create and store all 3 at once using storeAll().
+
 def justAspect(source,sampleLat,sampleLon,cellSize=None,outDir=None):
+    """Stores a numpy array of the aspect of the input raster.
+
+    Parameters
+    source string/Raster : name/instance of raster to generate array for.
+    sampleLat float : Latitude of a point in the zone to project to.
+    sampleLon float : Longitude of a point in the zone to project to.
+    cellSize float (optional) : the cell size used to produce the arrays. Default option
+        keeps the original size. Must be a multiple of the original size.
+    outDir string (optional) : the directory to place projected or resampled rasters in
+        if created. By default, will be placed in current directory.
+
+    Returns
+    0 if successful, otherwise -1."""
     arcpy.env.overwriteOutput = True
-    raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
-    
+    try:
+        raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
+    except RasterError as e:
+        print "Error loading raster : "+e.message
+        return -1    
     arcpy.env.snapRater = heightmap
     corner = raster.extent.lowerLeft
     cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
     aspect = arcpy.RasterToNumPyArray(_makeAspect(raster),corner,nodata_to_value=_NODATA)
 
-    with h5py.File("maps.hdf5","a") as f:
-        f["aspect"] = aspect
-        f["meta"] = np.array([corner.X,corner.Y,cellSize])
+    try:
+        with h5py.File("maps.hdf5","a") as f:
+            f["aspect"] = aspect
+            f["meta"] = np.array([corner.X,corner.Y,cellSize])
+    except IOError as e:
+        print "Error appending to 'maps.hdf5' : "+e.message
+        return -1
+    return 0
     
 
 def justSlope(source,sampleLat,sampleLon,cellSize=None,outDir=None):
+    """Stores a numpy array of the slope of the input raster.
+
+    Parameters
+    source string/Raster : name/instance of raster to generate array for.
+    sampleLat float : Latitude of a point in the zone to project to.
+    sampleLon float : Longitude of a point in the zone to project to.
+    cellSize float (optional) : the cell size used to produce the arrays. Default option
+        keeps the original size. Must be a multiple of the original size.
+    outDir string (optional) : the directory to place projected or resampled rasters in
+        if created. By default, will be placed in current directory.
+
+    Returns
+    0 if successful, otherwise -1."""
     arcpy.env.overwriteOutput = True
-    raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
+    try:
+        raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
+    except RasterError as e:
+        print "Error loading raster : "+e.message
+        return -1
     
     arcpy.env.snapRater = heightmap
     corner = raster.extent.lowerLeft
     cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
     slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)
 
-    with h5py.File("maps.hdf5","a") as f:
-        f["slope"] = slope
-        f["meta"] = np.array([corner.X,corner.Y,cellSize])
+    try:
+        with h5py.File("maps.hdf5","a") as f:
+            f["slope"] = slope
+            f["meta"] = np.array([corner.X,corner.Y,cellSize])
+    except IOError as e:
+        print "Error appending to 'maps.hdf5' : "+e.message
+        return -1
     return 0
 
 def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
+    """Stores the input raster in numpy format.
+
+    Parameters
+    source string/Raster : name/instance of raster to generate array for.
+    sampleLat float : Latitude of a point in the zone to project to.
+    sampleLon float : Longitude of a point in the zone to project to.
+    cellSize float (optional) : the cell size used to produce the arrays. Default option
+        keeps the original size. Must be a multiple of the original size.
+    outDir string (optional) : the directory to place projected or resampled rasters in
+        if created. By default, will be placed in current directory.
+
+    Returns
+    0 if successful, otherwise -1."""
     arcpy.env.overwriteOutput = True
-    raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
+    try:
+        raster = coordinateSystem(resample(loadRaster(source),cellSize,outDir),sampleLat,sampleLon,outDir)
+    except RasterError as e:
+        print "Error loading raster : "+e.message
+        return -1
     
     corner = raster.extent.lowerLeft
     cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
     heightmap = arcpy.RasterToNumPyArray(heightmap,corner,nodata_to_value=_NODATA)
 
-    with h5py.File("maps.hdf5","a") as f:
-        if "aspect" in f:
-            heightmap[np.isnan(f["aspect"][()])] = np.nan
-        elif "slope" in f:
-            heightmap[np.isnan(f["slope"][()])] = np.nan
-        else:
-            print "Note: Should run after storing aspect/slope."
-            print "This ensures a point with missing data in any 1 array has missing data according to all 3."
-        f["heightmap"] = heightmap
-        f["meta"] = np.array([corner.X,corner.Y,cellSize])
+    try:
+        with h5py.File("maps.hdf5","a") as f:
+            if "aspect" in f:
+                heightmap[np.isnan(f["aspect"][()])] = np.nan
+            elif "slope" in f:
+                heightmap[np.isnan(f["slope"][()])] = np.nan
+            else:
+                print "Note: Should run after storing aspect/slope."
+                print "This ensures a point with missing data in any 1 array has missing data according to all 3."
+            f["heightmap"] = heightmap
+            f["meta"] = np.array([corner.X,corner.Y,cellSize])
+    except IOError as e:
+        print "Error appending to 'maps.hdf5' : "+e.message
+        return -1
     return 0
 
 
 def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
-    """Takes the name of a raster and generates numpy arrays for that raster as well as its
-    slope and aspect. Latitude and longitude values are needed to correctly project the raster
-    to another coordinate system if not already in UTM zone coordinates.
+    """Takes a raster and generates numpy arrays for that raster as well as its
+    slope and aspect. Latitude and longitude values are needed to project the raster
+    to an appropriate coordinate system, either a UTM zone or UPS.
     
-    Parameters:
-        source string : name of geodatabase to work off of.
-        sampleLat float : the latitude of a point in the same UTM zone.
-        sampleLon float : the longitude of a point in the same UTM zone.
-        cellSize float (optional) : the cell size used to produce the arrays. Default option
-            keeps the original size. Must be a multiple of the original size.
-        outDir string (optional) : the directory to place projected or resampled rasters in
-            if created. By default, will be placed in current directory."""
+    Parameters
+    source string/Raster : name/instance of raster to generate arrays for.
+    sampleLat float : Latitude of a point in the zone to project to.
+    sampleLon float : Longitude of a point in the zone to project to.
+    cellSize float (optional) : the cell size used to produce the arrays. Default option
+        keeps the original size. Must be a multiple of the original size.
+    outDir string (optional) : the directory to place projected or resampled rasters in
+        if created. By default, will be placed in current directory.
+
+    Returns
+    0 if successful, otherwise -1."""
     if outDir is not None and not os.path.exists(outDir):
         os.makedirs(outDir)
 
@@ -179,34 +248,41 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
             f["slope"] = slope
             f["meta"] = np.array([corner.X,corner.Y,cellSize])
     except (RasterError,IOError) as e:
-        print "Error making arrays for maps.hdf5 : "+e.message
+        print "Error making arrays for 'maps.hdf5' : "+e.message
         return -1    
     return 0
 
 def rastersToHdf(heightmap,aspect=None,slope=None):
     """Converts all rasters to numpy arrays, generating them if they don't already exist.
-    Note: This expects the strings for the names of the rasters and will not do any resampling etc.
-    Sometimes get errors trying to run tools on projected/resampled rasters or accessing environment.
-    If so, may have to run through steps manually or call other functions e.g. 'justSlope'."""
+    Note: This method will not project or resample the rasters given.
+
+    Parameters
+    heightmap string/Raster : name/instance of raster to generate arrays for.
+    aspect string/Raster (optional) : name/instance of aspect raster. Will be generated from 'heightmap' by default.
+    slope string/Raster (optional) : name/instance of slope raster. Will be generated from 'heightmap' by default.
+
+    Returns
+    0 if successful, -1 otherwise."""
     arcpy.env.overwriteOutput = True
     arcpy.env.workspace = os.getcwd()
     try:
         heightmap = loadRaster(heightmap)
-    except RasterError as e:
-        print "Error:" +e.message
-        return -1
-    arcpy.env.snapRater = heightmap
-    corner = heightmap.extent.lowerLeft
-    cellSize = float(arcpy.GetRasterProperties_management(heightmap,"CELLSIZEX").getOutput(0)) 
+        arcpy.env.snapRater = heightmap
+        corner = heightmap.extent.lowerLeft
+        cellSize = float(arcpy.GetRasterProperties_management(heightmap,"CELLSIZEX").getOutput(0)) 
 
-    if aspect is None:
-        aspect = arcpy.RasterToNumPyArray(_makeAspect(heightmap),corner,nodata_to_value=_NODATA)
-    else:
-        aspect = arcpy.RasterToNumpyArray(loadRaster(aspect),corner,nodata_to_value=_NODATA)
-    if slope is None:
-        slope = arcpy.RasterToNumPyArray(_makeSlope(heightmap),corner,nodata_to_value=_NODATA)
-    else:
-        slope = arcpy.RasterToNumpyArray(loadRaster(slope),corner,nodata_to_value=_NODATA)
+        if aspect is None:
+            aspect = arcpy.RasterToNumPyArray(_makeAspect(heightmap),corner,nodata_to_value=_NODATA)
+        else:
+            aspect = arcpy.RasterToNumpyArray(loadRaster(aspect),corner,nodata_to_value=_NODATA)
+        if slope is None:
+            slope = arcpy.RasterToNumPyArray(_makeSlope(heightmap),corner,nodata_to_value=_NODATA)
+        else:
+            slope = arcpy.RasterToNumpyArray(loadRaster(slope),corner,nodata_to_value=_NODATA)
+    except RasterError as e:
+        print "Error loading raster : " +e.message
+        return -1
+    
     heightmap = arcpy.RasterToNumPyArray(heightmap,corner,nodata_to_value=_NODATA)
     heightmap[np.isnan(aspect)] = _NODATA
 

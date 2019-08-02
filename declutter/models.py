@@ -1,3 +1,8 @@
+"""Uses a 'maps.hdf5' file and directory of .hdf5 files for points to model
+the radargram/wiggle plots seen. Also contains a range of methods to allow
+the model to be altered, such as the backscatter model or the wave to convolve
+with the result."""
+
 import math
 import numpy as np
 import matplotlib
@@ -10,37 +15,48 @@ import multiprocessing as mp
 from progress import progress
 import h5py
 
-# plt.ion makes plots interactive (nonblocking) but may harm performance
-# and/or stability
 
 # Dist assuming 3x10^8. If basing on radargram, account for 1.67x10^8
 # i.e. 1km at ice speed is actually about 1.8km away
 
 figsize = (12,6.8)
 def setFigSize(x,y):
+    """Sets the size of any plots. Default is (12,6.8)"""
     figsize = (x,y)
 
 def setTimeStep(dt = 1.25e-8):
+    """Sets the time between sample points in radargrams/wiggle plots.
+    This is in terms of the two-way path i.e. difference in recieved time.
+    Default is 1.25e-8s"""
     global _GRANULARITY, _SPACE_GRANULARITY
     _GRANULARITY = dt
     _SPACE_GRANULARITY = _GRANULARITY*1.5e8
     _setSteps()
 def setSpaceStep(dx = 1.875):
+    """Sets the distance between sample points in the radargram/wiggle plots.
+    This is in terms of the one-way path. Default is 1.875m"""
     global _SPACE_GRANULARITY, _GRANULARITY
     _SPACE_GRANULARITY = float(dx)
     _GRANULARITY = dx / 1.5e8
     _setSteps()
 def setMaxDist(d = 3000.0):
+    """Sets the maximum range to consider a surface creating a response from.
+    Default is 3000m."""
     global _MAXDIST, _MAXTIME
     _MAXDIST = float(d)
     _MAXTIME = _MAXDIST/1.5e8
     _setSteps()
 def setMaxTime(t = 2e-5):
+    """Sets the maximum duration to show the radargram/wiggle plot over.
+    Default is 2e-5s."""
     global _MAXDIST, _MAXTIME
     _MAXTIME = t
     _MAXDIST = 1.5e8 * _MAXTIME
     _setSteps()
 def setSteps(n = 1600):
+    """Sets the number of samples in the radargram/wiggle plot. Note that
+    this adjusts the maximum range rather than the resolution of the plot.
+    Default is 1600."""
     global _steps,_MAXDIST,_MAXTIME
     _steps = int(n)
     _MAXTIME = _steps * _GRANULARITY
@@ -168,6 +184,8 @@ def direcLobes(theta,phi):
     return np.sin(theta)**2*np.sin(3*theta)**2
 
 def loadArrays(filename):
+    """Loads the data for a point. Will raise an IOError if the file
+    does not exist or has the wrong form."""
     with h5py.File(filename,"r") as f:
         distance = f["distance"][()]
         angle = f["incidence"][()]
@@ -180,7 +198,26 @@ def loadArrays(filename):
 # Replace GaussianDot with RC
 def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
                  wave=GaussianDot(),rFactor=0,directional=direcNone):
-    
+    """Models the response seen at a single point.
+
+    Parameters
+    distance - float array : the distance in metres to every visible point.
+    angle - float array : the surface incidence angle (in radians) of every
+        visible point.
+    theta, phi - float arrays : the direction to each visible point in spherical
+        coordinates, with the ends of the antenna being the poles. These can
+        be None, in which case they are not considered.
+    intensityModel - function (optional) : a function of incidence angle for the
+        backscatter from a surface. raySpecular by default i.e. cos(2 theta)
+    wave - class instance (optional) : a model of the wave to convolve with the
+        response. GaussianDot() by default.
+    rFactor - float (optional) : How intensity should fall with distance. 0 by default.
+    directional - function  (optional) : A function of theta and phi for the
+        directivity of the antenna.
+        
+    Returns
+    convol - float array : A time series of the modelled response.
+    """
     m = (distance < _MAXDIST)
     t = (_time(distance[m])/_GRANULARITY).astype(int)
     
@@ -217,7 +254,6 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     "save" to a string means the plot will be saved to that location.
 
     Parameters
-
     name - string : directory to look in for point data. Must contain no other
                     files or directories.
     adjusted - bool : indicates that the responses from each radar point should
@@ -230,6 +266,10 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     models - a list of functions of incidence angle to use for modelling the response.
     titles - a list of names to display above each plot, corresponding to the model
         in the same index in the models list.
+
+    Returns
+    returnData - 2D float array : The generated radargram data.
+    Returns -1 if the method fails.
     '''
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=figsize)
@@ -301,6 +341,19 @@ def worker(args):
 
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
+    """Calculates the response for a single point file.
+
+    Parameters
+    filename - string : Name of the file to generate the response for.
+    intensityModel - function (optional) : a function of incidence angle for the
+        backscatter from a surface. raySpecular by default i.e. cos(2 theta)
+    wave - class instance (optional) : a model of the wave to convolve with the
+        response. GaussianDot() by default.
+    display - bool (optional) : Whether to plot the data or not. Default is True.
+
+    Returns
+    Time series of predicted response if successful, otherwise -1.
+    """
     try:
         distance,angle,theta,phi = loadArrays(filename)
     except IOError:
@@ -317,6 +370,30 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
 
 def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,
                directional = direcNone, compareTo = None):
+    '''Plots the response for the points in the given directory side by side.
+
+    Parameters
+    name - string : directory to look in for point data. Must contain no other
+                    files or directories.
+    adjusted - bool : indicates that the responses from each radar point should
+                      be aligned vertically. i.e. If the radar took two samples
+                      at the same coordinates but different elevations, the
+                      response from the surface directly below would be at the
+                      same point on the plot for both samples.
+    intensityModel - function (optional) : a function of incidence angle for the
+        backscatter from a surface. raySpecular by default i.e. cos(2 theta)
+    wave - class instance (optional) : a model of the wave to convolve with the
+        response. GaussianDot() by default.
+    rFactor - float (optional) : How intensity should fall with distance. 0 by default.
+    directional - function  (optional) : A function of theta and phi for the
+        directivity of the antenna.
+    compareTo - 2D float array (optional) : An array of data the same shape as generated
+        from the input file. This is plotted behind each estimated response.
+    
+    Returns
+    The 2D array of predicted responses, or the normalised correlation coefficient if
+    compareTo was provided. If unsuccessful, returns -1.
+    '''
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=figsize)
     try:
@@ -380,6 +457,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     return np.corrcoef(a,b)[0,1]
     
 def showWave(wave=GaussianDot()):
+    """Plot the given wave over the time the radargram records for."""
     x = np.linspace(-_MAXTIME/10.0,_MAXTIME,_steps*2)
     y = wave.amplitude(x)
     plt.plot(x,y)
@@ -388,6 +466,8 @@ def showWave(wave=GaussianDot()):
     plt.show()
 
 def showDirectionality(directional=direcBroad,twoD = False):
+    """Creates a spherical plot of the directivity of the antenna.
+    Setting twoD causes the model to ignore phi, the azimuth angle."""
     import mpl_toolkits.mplot3d.axes3d as axes3d
     if twoD:
         theta, phi = np.linspace(0, 2 * np.pi, 361), 0

@@ -1,3 +1,6 @@
+"""Defines a method to display a progress bar which will update as an
+iterable progresses. Due to the IDLE shell ignoring backspace characters,
+this will not appear correctly in the shell but will in the console."""
 import sys, time
 def progress(iterable,steps=None):
     start = time.time()

@@ -54,6 +54,21 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True):
     return 0     
 
 def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True):
+    """Generates path data for the points in the given file.
+
+    Parameters
+    filename - string : The file to generate data for.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
+    outName - string (optional) : The directory to save the generated data in. By default, this is taken
+        from the input filename.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
+        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    save_visible - bool (optional) : Whether or not the array of which points are visible and which aren't should
+        be stored (significant proportion of the storage where only a few points are visible. Default is True.
+
+    Returns
+    0 if successful, otherwise -1.
+    """
     try:
         xs, ys, zs = loadData(filename, crop, style)
     except IOError:
@@ -68,6 +83,19 @@ def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True):
     return _genPath(xs,ys,zs,outName,False,save_visible)   
 
 def loadData(filename, crop = [0,0], style = None):
+    """Takes a file of points and returns three arrays of x-coordinate, y-coordinate, and elevation.
+
+    Parameters
+    filename - string : The file to generate data for.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
+        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+
+    Returns
+    xs, ys - The x and y coordinates of the input points. If the input file had longitude and latitude coordinates,
+        these have been mapped to a UTM zone or UPS for coordinates near the poles.
+    zs - Elevation values taken directly from the file.
+    """
     if style is None:
         if filename[-3:] == "dst":
             style = "dst"
@@ -121,8 +149,6 @@ def _loadGpx(filename,crop=[0,0],outName=None):
     return lons,lats,zs,outName
 
 def _loadDst(filename,crop=[0,0],noData=0.0):
-    """Loads a given .dst file, cropping the first crop[0] values and last
-    crop[1]. any entry with z = noData will be removed."""
     try:
         data = np.loadtxt(filename)
     except ValueError as e:
@@ -142,6 +168,8 @@ _southProj = pyproj.Proj("+proj=ups +south")
 _gpsProj = pyproj.Proj("+init=EPSG:4326") # wgs 84
 
 def gpsToXY(lons,lats):
+    """Converts an array of longitude and latitude coordinates to x,y coordinates
+    for the relevant zone, either a UTM zone or UPS."""
     if -79.5 <= lats[0] and lats[0] <= 83.5:
         xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons)
     elif -79.5 > lats[0]:
@@ -154,7 +182,15 @@ def gpsToXY(lons,lats):
         xs,ys = pyproj.transform(_gpsProj,_northProj,lons,lats)
     return xs,ys
 
-def showPath(filename,crop=[0,0],style="gpx"):
+def showPath(filename,crop=[0,0],style=None):
+    """Plots a given path in 3D.
+
+    Parameters
+    filename - string : The file to generate data for.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
+        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    """
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 
@@ -175,6 +211,14 @@ def showPath(filename,crop=[0,0],style="gpx"):
     return 0
 
 def showAboveGround(filename,crop=[0,0],style="gpx"):
+    """Uses 'maps.hdf5' to show the radar elevation relative to the ground directly beneath the radar along the path.
+
+    Parameters
+    filename - string : The file to generate data for.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
+        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    """
     import matplotlib.pyplot as plt
     from matplotlib import cm
     import viewshed
@@ -203,6 +247,13 @@ def showAboveGround(filename,crop=[0,0],style="gpx"):
     
 
 def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
+    """Plots the radar path in 3D, using 'maps.hdf5' to plot the surrounding terrain for reference.
+
+    Parameters
+    filename - string : The file to generate data for.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
+        this is determined by the file extension and assumed to be 'gpx' if that is unclear."""
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
@@ -250,7 +301,13 @@ def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
 # (Can't use == for NaNs, need np.isnan(...) instead)
 def checkValid(filename,crop = [0,0],style="gpx"):
     """Indicate if any of the map is undefined within 3km (current fixed range) of a point on the path.
-    Also highlights if the map is undefined directly beneath any points on the path."""
+    Also highlights if the map is undefined directly beneath any points on the path.
+
+    Parameters
+    filename - string : The file to generate data for.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
+        this is determined by the file extension and assumed to be 'gpx' if that is unclear."""
     try:
         xs, ys, zs = loadData(filename, crop, style)
     except IOError:

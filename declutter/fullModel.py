@@ -30,7 +30,7 @@ def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=
     save bool (optional) : Default True. If True, the radargram output is saved automatically.
 
     Returns
-    The radargram output if successful, otherwise 1.
+    The radargram output if successful, otherwise -1.
 
     """
     try:
@@ -80,7 +80,8 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
         beneath the radar path rather than being flat.
 
     Returns
-    returnData 2D float array : The radargram output."""
+    returnData 2D float array : The radargram output.
+    Returns -1 if unsuccessful."""
     direction = _makeDirections(xs,ys)
     n = len(xs)
 
