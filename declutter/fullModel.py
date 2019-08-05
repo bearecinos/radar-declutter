@@ -12,6 +12,7 @@ import multiprocessing as mp
 import pointData
 import viewshed
 import matplotlib.pyplot as plt
+import align
 
 def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=True):
     """Takes a gps path and displays a radargram for that path.
@@ -83,24 +84,20 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     direction = _makeDirections(xs,ys)
     n = len(xs)
 
-    _MAXDIST = models._MAXDIST
-    _SPACE_GRANULARITY = models._SPACE_GRANULARITY
-    _steps = models._steps
+    env = models.env
     reflectionModels = models.models
     titles = models.titles
     
-    returnData = np.full((len(reflectionModels),n,_steps),0,float) # 3D - many plots
+    returnData = np.full((len(reflectionModels),n,env.steps),0,float) # 3D - many plots
     plt.rcParams['axes.formatter.limits'] = [-4,4]
-    plt.figure(figsize=(12,8))
-    heights = []
+    plt.figure(figsize=models.figsize)
 
     p = mp.Pool(mp.cpu_count())
     data = [(x,y,z,i,isOffset,angle,reflectionModels) for x,y,i,z,angle in
                             zip(xs,ys,np.arange(n),zs,direction)]
     try:
-        for i, h, ars in progress(p.imap_unordered(_worker,data),n):
+        for i, ars in progress(p.imap_unordered(_worker,data),n):
             returnData[:,i] = ars
-            heights.append(h)
     except IOError as e:
         p.close()
         print "\nError reading 'maps.hdf5' :\n" + e.message
@@ -110,21 +107,15 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     returnData = returnData[:,np.any(returnData[0] != 0,1)] # remove invalid rows
     n = returnData.shape[1]
     
-    highest,lowest = 0,0
+    
     if adjusted:
-        highest = max(heights)
-        lowest = min(heights)
-        draw = np.full((len(reflectionModels),n,_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
-        for i in range(n):
-            start = int((highest-heights[i])/_SPACE_GRANULARITY)
-            draw[:,i,start:start+_steps] = returnData[:,i]
-        returnData = draw
+        returnData = align.minAlign(returnData, env.dx)
     
     cells = int(np.ceil(np.sqrt(len(reflectionModels))))*110
-    ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
+    ys = np.linspace(0, env.maxTime, env.steps)
     for j in range(len(reflectionModels)):
         plt.subplot(cells+j+1)
-        plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
+        plt.ylim(env.maxTime,0)
         draw = np.swapaxes(returnData[j],0,1)
         plt.contourf(np.arange(n), ys, draw, 100,norm=models.MidNorm(np.mean(draw)), cmap="Greys")
         plt.title(titles[j])
@@ -142,8 +133,8 @@ def _worker(args): # x,y,z,i,offset,angle,models array
 
     _,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
                                                                   isOffset,angle)
-    ars = np.full((len(reflectionModels),models._steps),0,float)
+    ars = np.full((len(reflectionModels),models.env.steps),0,float)
     for j in range(len(reflectionModels)):
         ars[j] = models.processSlice(dist,incidence,theta,phi,reflectionModels[j])
 
-    return i, elevation, ars
+    return i, ars
