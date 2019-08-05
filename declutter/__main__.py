@@ -91,7 +91,7 @@ if __name__ == "__main__":
                         an estimate of the radargram expected.""",
                         help='Displays a radargram from existing point data.')
     displayParse.add_argument('directory',help="Name of the directory containing the point data.")
-    displayParse.add_argument('-a','--adjusted',action="store_true", help="Aligns points of equal elevation on the radargram rather than time.")
+    displayParse.add_argument('-a','--adjusted',action="store_true", help="Aligns the surface below the radar with the top of the plot.")
     exclusive = displayParse.add_mutually_exclusive_group()
     exclusive.add_argument("-n","--no",action="store_false", help = "Do not save the radargram produced, but still displays it.")
     exclusive.add_argument("-s","--save", help = "The name to save the radargram as.")
