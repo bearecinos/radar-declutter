@@ -16,61 +16,73 @@ from progress import progress
 import h5py
 
 
-# Dist assuming 3x10^8. If basing on radargram, account for 1.67x10^8
-# i.e. 1km at ice speed is actually about 1.8km away
+__all__ = ["setFigSize", "setTimeStep", "setSpaceStep", "setMaxDist", "setMaxTime",
+           "setSteps", "lambertian", "Minnaert", "Min2", "raySpecular", "rayModel",
+           "ray2Model", "specular2Model", "specular4Model", "IDLreflection",
+           "GaussianDot", "Ricker", "Constant", "IDLWave", "RC", "CosExp", "Sym",
+           "direcBroad", "direcNone", "direcIDL", "direcLobes", "loadArrays",
+           "processSlice", "models", "titles", "compare", "wiggle", "manyWiggle",
+           "showWave", "showDirectionality"]
 
 figsize = (12,6.8)
 def setFigSize(x,y):
     """Sets the size of any plots. Default is (12,6.8)"""
     figsize = (x,y)
 
+# Distance is for speed in air rather than ice. i.e. 3e8, not 1.67e8
 def setTimeStep(dt = 1.25e-8):
     """Sets the time between sample points in radargrams/wiggle plots.
     This is in terms of the two-way path i.e. difference in recieved time.
     Default is 1.25e-8s"""
-    global _GRANULARITY, _SPACE_GRANULARITY
-    _GRANULARITY = dt
-    _SPACE_GRANULARITY = _GRANULARITY*1.5e8
+    global env
+    env.dt = dt
+    env.dx = dt*1.5e8
     _setSteps()
+    
 def setSpaceStep(dx = 1.875):
     """Sets the distance between sample points in the radargram/wiggle plots.
     This is in terms of the one-way path. Default is 1.875m"""
-    global _SPACE_GRANULARITY, _GRANULARITY
-    _SPACE_GRANULARITY = float(dx)
-    _GRANULARITY = dx / 1.5e8
+    global env
+    env.dx = float(dx)
+    env.dt = dx/1.5e8
     _setSteps()
+    
 def setMaxDist(d = 3000.0):
     """Sets the maximum range to consider a surface creating a response from.
     Default is 3000m."""
-    global _MAXDIST, _MAXTIME
-    _MAXDIST = float(d)
-    _MAXTIME = _MAXDIST/1.5e8
+    global env
+    env.maxDist = float(d)
+    env.maxTime = d/1.5e8
     _setSteps()
+    
 def setMaxTime(t = 2e-5):
     """Sets the maximum duration to show the radargram/wiggle plot over.
     Default is 2e-5s."""
-    global _MAXDIST, _MAXTIME
-    _MAXTIME = t
-    _MAXDIST = 1.5e8 * _MAXTIME
+    global env
+    env.maxTime = t
+    env.maxDist = t*1.5e8
     _setSteps()
+    
 def setSteps(n = 1600):
-    """Sets the number of samples in the radargram/wiggle plot. Note that
-    this adjusts the maximum range rather than the resolution of the plot.
-    Default is 1600."""
-    global _steps,_MAXDIST,_MAXTIME
-    _steps = int(n)
-    _MAXTIME = _steps * _GRANULARITY
-    _MAXDIST = 1.5e8 * _MAXTIME    
+    """Sets the number of samples in the radargram/wiggle plot. This
+    changes the maximum range of the plot. Default is 1600."""
+    global env
+    env.steps = n
+    env.maxDist = dx*n
+    env.maxTime = dt*n
+    
 def _setSteps():
-    global _steps
-    _steps = int(_MAXTIME/_GRANULARITY)
+    global env
+    env.steps = int(env.maxTime / env.dt)
 
-_MAXDIST = 3000.0
-#_MAXDIST = 701 * 1.25e-8 * 1.5e8 # from sample radargram
-_GRANULARITY = 1.25e-8 # 10ns
-_SPACE_GRANULARITY = _GRANULARITY*1.5e8
-_MAXTIME = 2*_MAXDIST/3e8
-_setSteps()
+class Env:
+    maxDist = 3000.0
+    maxTime = maxDist/1.5e8
+    dt = 1.25e-8
+    dx = dt*1.5e8
+    steps = int(maxTime / dt)
+    
+env = Env()
     
 
 def _time(distance):
@@ -118,7 +130,7 @@ class MidNorm(colors.Normalize):
         x,y = [self.vmin,self.midpoint,self.vmax],[0,0.5,1]
         return np.ma.masked_array(np.interp(value,x,y),np.isnan(value))
 
-# wave models
+# wave models - some rely on environment variables
 class GaussianDot:
     delt = 2.0/(3.0*_freq)
     align = 0.0
@@ -138,18 +150,18 @@ class Constant:
     delt = 0.0
     align = 0.0
     def amplitude(self,t):
-        return t < _GRANULARITY 
+        return t < env.dt 
 class IDLWave:
     # exp( - (findgen(echo_size)-float(i))^2/50. )
     # timestep was 240us (2.4e-4 seconds echo length) / 2048 granularity
     # = 1.172e-7 = 117ns - much longer than our sampling rate
     # scaling = 1.172e-7
-    align = _MAXTIME / 2.0
+    align = env.maxTime / 2.0
     delt = align
     def __init__(self,c=50.0):
         self.c = float(c)
     def amplitude(self,t):
-        t = (t-self.delt)/_GRANULARITY
+        t = (t-self.delt)/env.dt
         return np.exp(-t**2/self.c)
 class RC:
     align = 0.0
@@ -218,8 +230,8 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
     Returns
     convol - float array : A time series of the modelled response.
     """
-    m = (distance < _MAXDIST)
-    t = (_time(distance[m])/_GRANULARITY).astype(int)
+    m = (distance < env.maxDist)
+    t = (_time(distance[m])/env.dt).astype(int)
     
     intensity = intensityModel(angle[m]) / np.power(distance[m],rFactor)
     
@@ -228,14 +240,14 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
     if theta is not None:
         intensity *= directional(theta[m],phi[m])
     
-    sample = np.array([np.sum(intensity[t==i]) for i in range(_steps)])
+    sample = np.array([np.sum(intensity[t==i]) for i in range(env.steps)])
     #sample = np.array([np.sum(t==i) for i in range(_steps)])
     #sample = np.array([np.sum(intensity[t==i])/(1+np.sum(t==i)) for i in range(_steps)])
     
     # convolution
-    w = wave.amplitude(np.linspace(0.0,_MAXTIME,_steps))
-    idx = int(wave.align/_GRANULARITY)
-    convol = np.convolve(sample,w)[idx:idx+_steps]
+    w = wave.amplitude(np.linspace(0.0,env.maxTime,env.steps))
+    idx = int(wave.align/env.dt)
+    convol = np.convolve(sample,w)[idx:idx+env.steps]
     
     # Filtering
     #convol = bandpass_filter(convol,0.05,0.4,1.0)
@@ -279,10 +291,10 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
     heights = []
-    returnData = np.full((len(models),len(files),_steps),0,float) # 3D - many plots
+    returnData = np.full((len(models),len(files),env.steps),0,float) # 3D - many plots
     
     p = mp.Pool(mp.cpu_count())
-    data = [(i,name+"/"+files[i],wave,models,directional) for i in range(len(files))]
+    data = [(i,name+"/"+files[i],wave,models,directional,env) for i in range(len(files))]
 
     try:
         for i, h, ars in progress(p.imap_unordered(worker,data),len(files)):
@@ -298,18 +310,18 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     if adjusted:
         highest = max(heights)
         lowest = min(heights)
-        draw = np.full((len(models),len(files),_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
+        draw = np.full((len(models),len(files),env.steps + int((highest-lowest)/env.dx)),0)
         for i in range(len(files)):
-            start = int((highest-heights[i])/_SPACE_GRANULARITY)
-            draw[:,i,start:start+_steps] = returnData[:,i]
+            start = int((highest-heights[i])/env.dx)
+            draw[:,i,start:start+env.steps] = returnData[:,i]
         returnData = draw
 
     cells = int(np.ceil(np.sqrt(len(models))))*110
-    ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
+    ys = np.linspace(0,(env.maxDist+highest-lowest)*2.0/3e8,env.steps+(highest-lowest)/env.dx)
     
     for j in range(len(models)):
         plt.subplot(cells+j+1)
-        plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
+        plt.ylim((env.maxDist+highest-lowest)*2.0/3e8,0)
         draw = np.swapaxes(returnData[j],0,1)
   
         plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
@@ -328,12 +340,13 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     return returnData
 
 def worker(args):
-    i,name,wave,models,directional = args
+    global env
+    i,name,wave,models,directional,env = args
     with h5py.File(name,"r") as f:
         h = f["meta"][2]
     distance,angle,theta,phi = loadArrays(name)
 
-    ars = np.full((len(models),_steps),0,float)
+    ars = np.full((len(models),env.steps),0,float)
     for j in range(len(models)):
         ars[j] = processSlice(distance,angle,theta,phi,models[j],wave,directional=directional)
     return i, h, ars
@@ -362,7 +375,7 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
     # Clipping
     #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
     if display:
-        xs = np.linspace(0,_MAXDIST*2.0/3e8,_steps)
+        xs = np.linspace(0,env.maxDist*2.0/3e8,env.steps)
         plt.plot(xs,ys,color="black")
         plt.fill_between(xs,ys,0,where=(ys>0),color="black")
         plt.show()
@@ -405,7 +418,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
 
     cells = int(np.ceil(np.sqrt(len(files))))*110
     
-    out = np.full((len(files),_steps),0,float)
+    out = np.full((len(files),env.steps),0,float)
     for i in range(len(files)):
         filename = files[i]
         try:
@@ -420,14 +433,14 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     if adjusted:
         highest = max(heights)
         lowest = min(heights)
-        draw = np.full((len(files),_steps + int((highest-lowest)/_SPACE_GRANULARITY)),0)
+        draw = np.full((len(files),env.steps + int((highest-lowest)/env.dx)),0)
         for i in range(len(files)):
-            start = int((highest-heights[i])/_SPACE_GRANULARITY)
-            draw[i][start:start+_steps] = out[i]
+            start = int((highest-heights[i])/env.dx)
+            draw[i][start:start+env.steps] = out[i]
     else:
         draw = out
         highest, lowest = 0, 0
-    ys = np.linspace(0,(_MAXDIST+highest-lowest)*2.0/3e8,_steps+(highest-lowest)/_SPACE_GRANULARITY)
+    ys = np.linspace(0,(env.maxDist+highest-lowest)*2.0/3e8,env.steps+(highest-lowest)/env.dx)
     
     # clipping
     #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
@@ -443,7 +456,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
             plt.plot(compareTo[i]+m*i,ys,"r-",zorder=2,label="reference",alpha=0.3)
             if i == 0:
                 plt.legend()
-    plt.ylim((_MAXDIST+highest-lowest)*2.0/3e8,0)
+    plt.ylim((env.maxDist+highest-lowest)*2.0/3e8,0)
     plt.xlim(-m,m*len(files))
     plt.gca().axes.get_xaxis().set_visible(False)
 
@@ -458,11 +471,11 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     
 def showWave(wave=GaussianDot()):
     """Plot the given wave over the time the radargram records for."""
-    x = np.linspace(-_MAXTIME/10.0,_MAXTIME,_steps*2)
+    x = np.linspace(-env.maxTime/10.0,env.maxTime,env.steps*2)
     y = wave.amplitude(x)
     plt.plot(x,y)
     plt.plot([wave.align,wave.align],[np.amin(y),np.amax(y)])
-    plt.plot([wave.align+_GRANULARITY,wave.align+_GRANULARITY],[np.amin(y),np.amax(y)])
+    plt.plot([wave.align+env.dt,wave.align+env.dt],[np.amin(y),np.amax(y)])
     plt.show()
 
 def showDirectionality(directional=direcBroad,twoD = False):
