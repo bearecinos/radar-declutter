@@ -24,9 +24,8 @@ def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=
     style string (optional) : The format of the input file, either 'gpx', 'dst' or 'xyz'. By default,
         the loadData method determines the format from the file extension and assumes gpx if the extension
         is not recognised.
-    adjusted bool (optional) : Default False. If True, slices of the radargram are adjusted by the elvation
-        of the radar, meaning the response from the surface appears similar to the profile of the ground
-        beneath the radar path rather than being flat.
+    adjusted bool (optional) : Shift the data for each point to align the response from the surface
+        directly beneath the radar with the top of the plot.
     save bool (optional) : Default True. If True, the radargram output is saved automatically.
 
     Returns
@@ -75,9 +74,8 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     zs float array : Array of altitude/elevation above ground along path.
     name string : Name of file to save radargram as. Not saved if name is None.
     isOffset bool (optional) : Whether the given z coordinates are altitude or relative to the ground. Default is relative.
-    adjusted bool (optional) : Default False. If True, slices of the radargram are adjusted by the elvation
-        of the radar, meaning the response from the surface appears similar to the profile of the ground
-        beneath the radar path rather than being flat.
+    adjusted bool (optional) : Shift the data for each point to align the response from the surface
+        directly beneath the radar with the top of the plot.
 
     Returns
     returnData 2D float array : The radargram output.

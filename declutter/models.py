@@ -14,7 +14,7 @@ from scipy import signal
 import multiprocessing as mp
 from progress import progress
 import h5py
-
+import align
 
 __all__ = ["setFigSize", "setTimeStep", "setSpaceStep", "setMaxDist", "setMaxTime",
            "setSteps", "lambertian", "Minnaert", "Min2", "raySpecular", "rayModel",
@@ -68,8 +68,8 @@ def setSteps(n = 1600):
     changes the maximum range of the plot. Default is 1600."""
     global env
     env.steps = n
-    env.maxDist = dx*n
-    env.maxTime = dt*n
+    env.maxDist = env.dx*n
+    env.maxTime = env.dt*n
     
 def _setSteps():
     global env
@@ -268,11 +268,8 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     Parameters
     name - string : directory to look in for point data. Must contain no other
                     files or directories.
-    adjusted - bool : indicates that the responses from each radar point should
-                      be aligned vertically. i.e. If the radar took two samples
-                      at the same coordinates but different elevations, the
-                      response from the surface directly below would be at the
-                      same point on the plot for both samples.
+    adjusted - bool : The data for each point is shifted to align the response from
+                    the surface directly beneath the radar with the top of the plot.
     wave - Wave instance : the wave to convolve over the response.
     save - string (optional) : the name of the file to save the radargram in.
     models - a list of functions of incidence angle to use for modelling the response.
@@ -290,38 +287,31 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     except OSError as e:
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
-    heights = []
+    
     returnData = np.full((len(models),len(files),env.steps),0,float) # 3D - many plots
     
     p = mp.Pool(mp.cpu_count())
     data = [(i,name+"/"+files[i],wave,models,directional,env) for i in range(len(files))]
 
     try:
-        for i, h, ars in progress(p.imap_unordered(worker,data),len(files)):
+        for i, ars in progress(p.imap_unordered(worker,data),len(files)):
             returnData[:,i] = ars
-            heights.append(h)
     except IOError as e:
         p.close()
         print "\nError reading hdf5 file :\n"+e.message
         return -1
     p.close()
 
-    highest,lowest = 0,0
     if adjusted:
-        highest = max(heights)
-        lowest = min(heights)
-        draw = np.full((len(models),len(files),env.steps + int((highest-lowest)/env.dx)),0)
-        for i in range(len(files)):
-            start = int((highest-heights[i])/env.dx)
-            draw[:,i,start:start+env.steps] = returnData[:,i]
-        returnData = draw
+        for i in range(len(models)):
+            returnData[i] =  align.minAlign(returnData[i], env.dx, 200.0)
 
     cells = int(np.ceil(np.sqrt(len(models))))*110
-    ys = np.linspace(0,(env.maxDist+highest-lowest)*2.0/3e8,env.steps+(highest-lowest)/env.dx)
+    ys = np.linspace(0, env.maxTime, env.steps)
     
     for j in range(len(models)):
         plt.subplot(cells+j+1)
-        plt.ylim((env.maxDist+highest-lowest)*2.0/3e8,0)
+        plt.ylim(env.maxTime, 0)
         draw = np.swapaxes(returnData[j],0,1)
   
         plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
@@ -342,16 +332,12 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
 def worker(args):
     global env
     i,name,wave,models,directional,env = args
-    with h5py.File(name,"r") as f:
-        h = f["meta"][2]
     distance,angle,theta,phi = loadArrays(name)
 
     ars = np.full((len(models),env.steps),0,float)
     for j in range(len(models)):
         ars[j] = processSlice(distance,angle,theta,phi,models[j],wave,directional=directional)
-    return i, h, ars
-
-
+    return i, ars
 
 def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
     """Calculates the response for a single point file.
@@ -375,7 +361,7 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
     # Clipping
     #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
     if display:
-        xs = np.linspace(0,env.maxDist*2.0/3e8,env.steps)
+        xs = np.linspace(0,env.maxTime,env.steps)
         plt.plot(xs,ys,color="black")
         plt.fill_between(xs,ys,0,where=(ys>0),color="black")
         plt.show()
@@ -388,11 +374,8 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     Parameters
     name - string : directory to look in for point data. Must contain no other
                     files or directories.
-    adjusted - bool : indicates that the responses from each radar point should
-                      be aligned vertically. i.e. If the radar took two samples
-                      at the same coordinates but different elevations, the
-                      response from the surface directly below would be at the
-                      same point on the plot for both samples.
+    adjusted - bool (optional) : the data is shifted for each point to align the response
+                    from the surface directly beneath the radar with the top of the plot.
     intensityModel - function (optional) : a function of incidence angle for the
         backscatter from a surface. raySpecular by default i.e. cos(2 theta)
     wave - class instance (optional) : a model of the wave to convolve with the
@@ -422,8 +405,6 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     for i in range(len(files)):
         filename = files[i]
         try:
-            with h5py.File(name+"/"+filename,"r") as f:
-                heights.append(f["meta"][2])
             distance,angle,theta,phi = loadArrays(name+"/"+filename)
         except IOError as e:
             print "Could not read h5py file : "+name+"/"+filename
@@ -431,16 +412,11 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
         out[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,rFactor,directional)  
 
     if adjusted:
-        highest = max(heights)
-        lowest = min(heights)
-        draw = np.full((len(files),env.steps + int((highest-lowest)/env.dx)),0)
-        for i in range(len(files)):
-            start = int((highest-heights[i])/env.dx)
-            draw[i][start:start+env.steps] = out[i]
+        out =  align.minAlign(out, env.dx, 200.0)
     else:
         draw = out
         highest, lowest = 0, 0
-    ys = np.linspace(0,(env.maxDist+highest-lowest)*2.0/3e8,env.steps+(highest-lowest)/env.dx)
+    ys = np.linspace(0, env.maxTime, env.steps)
     
     # clipping
     #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
@@ -456,7 +432,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
             plt.plot(compareTo[i]+m*i,ys,"r-",zorder=2,label="reference",alpha=0.3)
             if i == 0:
                 plt.legend()
-    plt.ylim((env.maxDist+highest-lowest)*2.0/3e8,0)
+    plt.ylim(env.maxTime,0)
     plt.xlim(-m,m*len(files))
     plt.gca().axes.get_xaxis().set_visible(False)
 
