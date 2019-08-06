@@ -23,26 +23,40 @@ __all__ = ["setFigSize", "setTimeStep", "setSpaceStep", "setMaxDist", "setMaxTim
            "processSlice", "models", "titles", "compare", "wiggle", "manyWiggle",
            "showWave", "showDirectionality"]
 
+class Env:
+    maxDist = 3000.0
+    maxTime = maxDist/1.5e8
+    dt = 1.25e-8
+    dx = dt*1.5e8
+    steps = int(maxTime / dt)
+    
+env = Env()
+
 def loadParameters():
     global env
     path = os.path.dirname(__file__)+"/config.npy"
-    if not exists(path):
+    if not os.path.exists(path):
         return -1
     setups = {"maxDist":setMaxDist, "maxTime":setMaxTime, "dx":setSpaceStep,
               "dt":setTimeStep, "steps":setSteps}
     data = np.load(path,allow_pickle=True).item()
+    print "Loading plot parameters from config file:"
     # Calling in certain orders changes some values back, hence cases
-    if "steps" not in data or ("maxDist" not in data and "maxTime" not in data):
+    if data["steps"] is None or (data["maxDist"] is None and data["maxTime"] is None):
         for key, val in data.iteritems():
             if val is not None:
                 setups[key](val)
                 print key+" : "+str(val)
-    elif "maxDist" in data:
+    elif data["maxDist"] is not None:
         setMaxDist(data["maxDist"])
         setSpaceStep(data["maxDist"]/data["steps"])
+        print "maxDist : "+str(data["maxDist"])
+        print "steps : "+str(data["steps"])
     else:
         setMaxTime(data["maxTime"])
         setSpaceStep(data["maxTime"]/data["steps"])
+        print "maxTime : "+str(data["maxTime"])
+        print "steps : "+str(data["steps"])
     return 0
 
 def storeParameters(env = env):
@@ -103,15 +117,6 @@ def setSteps(n = 1600):
 def _setSteps():
     global env
     env.steps = int(env.maxTime / env.dt)
-
-class Env:
-    maxDist = 3000.0
-    maxTime = maxDist/1.5e8
-    dt = 1.25e-8
-    dx = dt*1.5e8
-    steps = int(maxTime / dt)
-    
-env = Env()
 
 def _time(distance):
     """Get the time for a wave to return to the radar after reflecting off a

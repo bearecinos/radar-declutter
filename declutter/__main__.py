@@ -45,6 +45,7 @@ def display(args):
     """Produces a radargram from existing intermediate data.
     Returns 0 if successful, else -1."""
     import models
+    models.loadParameters()
     if args.no and args.save is None:
         args.save = args.directory + ".png"
     return models.compare(args.directory,args.adjusted,save=args.save)
@@ -53,11 +54,11 @@ def setParams(args):
     """Overwrites any existing parameters stored which will revert to their default values if not fixed by arguments passed."""
     import numpy as np
     import os
-    if args.show is not None and (args.maxdist is not None or args.maxtime is not None or
+    if args.show  and (args.maxdist is not None or args.maxtime is not None or
                                   args.steps is not None or args.dx is not None or args.dt is not None):
         print "Cannot show and set at same time. Do not use --show with other options."
         return -1
-    elif args.show is not None:
+    elif args.show:
         d = np.load(os.path.dirname(__file__)+"/config.npy", allow_pickle=True).item()
         for key, val in d.items():
             if val is not None:
