@@ -2,14 +2,13 @@
 the radargram/wiggle plots seen. Also contains a range of methods to allow
 the model to be altered, such as the backscatter model or the wave to convolve
 with the result."""
-
 import math
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib import cm
-from os import listdir
+import os
 from scipy import signal
 import multiprocessing as mp
 from progress import progress
@@ -23,6 +22,36 @@ __all__ = ["setFigSize", "setTimeStep", "setSpaceStep", "setMaxDist", "setMaxTim
            "direcBroad", "direcNone", "direcIDL", "direcLobes", "loadArrays",
            "processSlice", "models", "titles", "compare", "wiggle", "manyWiggle",
            "showWave", "showDirectionality"]
+
+def loadParameters():
+    global env
+    path = os.path.dirname(__file__)+"/config.npy"
+    if not exists(path):
+        return -1
+    setups = {"maxDist":setMaxDist, "maxTime":setMaxTime, "dx":setSpaceStep,
+              "dt":setTimeStep, "steps":setSteps}
+    data = np.load(path,allow_pickle=True).item()
+    # Calling in certain orders changes some values back, hence cases
+    if "steps" not in data or ("maxDist" not in data and "maxTime" not in data):
+        for key, val in data.iteritems():
+            if val is not None:
+                setups[key](val)
+                print key+" : "+str(val)
+    elif "maxDist" in data:
+        setMaxDist(data["maxDist"])
+        setSpaceStep(data["maxDist"]/data["steps"])
+    else:
+        setMaxTime(data["maxTime"])
+        setSpaceStep(data["maxTime"]/data["steps"])
+    return 0
+
+def storeParameters(env = env):
+    # Rest found from maxDist and dt on loading
+    data = {"maxDist":None,"maxTime":env.maxTime,
+            "dx":None, "dt":env.dt, "steps":None}
+    path = os.path.dirname(__file__)+"/config.npy"
+    np.save(path,data)
+    return 0
 
 figsize = (12,6.8)
 def setFigSize(x,y):
@@ -67,7 +96,7 @@ def setSteps(n = 1600):
     """Sets the number of samples in the radargram/wiggle plot. This
     changes the maximum range of the plot. Default is 1600."""
     global env
-    env.steps = n
+    env.steps = int(n)
     env.maxDist = env.dx*n
     env.maxTime = env.dt*n
     
@@ -83,7 +112,6 @@ class Env:
     steps = int(maxTime / dt)
     
 env = Env()
-    
 
 def _time(distance):
     """Get the time for a wave to return to the radar after reflecting off a
@@ -288,7 +316,7 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=figsize)
     try:
-        files = listdir(name)
+        files = os.listdir(name)
     except OSError as e:
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
@@ -402,7 +430,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=figsize)
     try:
-        files = listdir(name)
+        files = os.listdir(name)
     except OSError as e:
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes "point" prefix

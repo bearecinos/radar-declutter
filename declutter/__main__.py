@@ -18,6 +18,7 @@ def model(args):
     test variations on the model.
     Returns 0 if successful, else -1."""
     import fullModel, path, models
+    
     if (args.out is not None or args.view) and not args.files: # arguments don't make sense
         print """Must also set (-f/--files) to enable storing files."""
         return -1
@@ -37,6 +38,7 @@ def model(args):
                 args.save = args.filename[:-4]+".png"
             else:
                 args.save = args.filename+".png"
+        models.loadParameters()
         return models.compare(args.out,save=args.save)
 
 def display(args):
@@ -47,6 +49,29 @@ def display(args):
         args.save = args.directory + ".png"
     return models.compare(args.directory,args.adjusted,save=args.save)
 
+def setParams(args):
+    """Overwrites any existing parameters stored which will revert to their default values if not fixed by arguments passed."""
+    import numpy as np
+    import os
+    if args.show is not None and (args.maxdist is not None or args.maxtime is not None or
+                                  args.steps is not None or args.dx is not None or args.dt is not None):
+        print "Cannot show and set at same time. Do not use --show with other options."
+        return -1
+    elif args.show is not None:
+        d = np.load(os.path.dirname(__file__)+"/config.npy", allow_pickle=True).item()
+        for key, val in d.items():
+            if val is not None:
+                print key + " = "+val
+        return 0
+    if (args.steps is not None and (args.maxdist is not None or args.maxtime is not None) and
+        (args.dx is not None or args.dt is not None)):
+        if args.maxdist != args.dx * 1.5e8:
+            print "Contradiction, cannot set range, granularity and total number of steps."
+            return -1
+    
+    d = {"steps":args.steps, "maxDist":args.maxdist, "maxTime":args.maxtime, "dx":args.dx, "dt":args.dt}
+    np.save(os.path.dirname(__file__)+"/config.npy", d)
+    return 0
 
 # Defines a parser for reading command line arguments
 if __name__ == "__main__":
@@ -102,6 +127,23 @@ if __name__ == "__main__":
     exclusive.add_argument("-n","--no",action="store_false", help = "Do not save the radargram produced, but still displays it.")
     exclusive.add_argument("-s","--save", help = "The name to save the radargram as.")
     displayParse.set_defaults(func=display)
+
+    paramParse = subparsers.add_parser('config',description="""
+                        Sets/displays default options for the radargrams produced by command line calls to 'models'.""",
+                        help='Sets the range/granularity of radargrams.')
+    
+    
+    paramParse.add_argument('--show',action="store_true",help="Display any existing parameters set.")
+    paramParse.add_argument('-n','--steps',type=int,help="Number of time samples in the radargram.")
+
+    exclusive = paramParse.add_mutually_exclusive_group()
+    exclusive.add_argument('--maxdist',type=float, help="Furthest surfaces to consider in the radargram.")
+    exclusive.add_argument('--maxtime',type=float, help="Recording duration of the radargram.")
+
+    exclusive = paramParse.add_mutually_exclusive_group()    
+    exclusive.add_argument("--dx",type=float, help = "Spatial resolution of the radargram.")
+    exclusive.add_argument("--dt",type=float, help = "Time resolution of the radargram.")
+    paramParse.set_defaults(func=setParams)
 
     # parse sys.argv (command line input) and call appropriate method
     a = parser.parse_args()

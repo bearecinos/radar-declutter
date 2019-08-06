@@ -91,6 +91,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     n = len(xs)
 
     # env holds timestep/range to sample over for radargram and granularity of samples
+    models.loadParameters()
     env = models.env
     reflectionModels = models.models
     titles = models.titles
