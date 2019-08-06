@@ -7,12 +7,13 @@ available and the slow setup time for arcpy if it is never needed."""
 
 import warnings
 # ignore warnings when comparing arrays containing NaNs.
-# Always get False from ar > x where NaNs present
-# which is desired behaviour.
+# Always get False from NaN > x which is desired behaviour.
 warnings.filterwarnings("ignore")
 
+# modules which should be immediately visible
 __all__ = ["changeSize","models","path","pointData","makeArrays"]  
 
+# runs whenever any part of package is run.
 try:
     import lazy_import
     arcpy = lazy_import.lazy_module("arcpy")

@@ -19,7 +19,9 @@ _NODATA = np.nan
 
 
 def Setup(): 
-    """Loads the full numpy arrays to be cropped for each point."""
+    """Loads the full numpy arrays to be cropped for each point.
+
+`   Raises IOError if maps.hdf5 cannot be loaded."""
     global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize, _cropSize
 
     with h5py.File('maps.hdf5',"r") as f:
@@ -89,14 +91,13 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     Parameters:
     pointx - float : x-coordinate of point.
     pointy - float : y-coordinate of point.
-    path - string : name of folder to save data in.
     above_ground - float (optional) : Either actual altitude of radar or elevation above ground. Default = 100.0.
     isOffset - bool (optional) : Indicates the given 'above_ground' is relative to the ground. Default = True.
     antennaDir - float (optional) : The direction the radar was facing in degrees. By default, not used.    
 
     Returns
     vis - 2D float array : An array of which points on the surface around
-        the radar were visible or not.
+        the radar are visible or not.
     trueDist - float array : the distance in metres to every visible point.
     incidence - float array : the surface incidence angle (in radians) of every
         visible point.
@@ -107,10 +108,14 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
         false, otherwise equal to above_ground plus the elevation of the ground
         directly below the radar.
 
+    Only vis is a 2D array, all others arrays are 1D and contain information for just the
+    visible points.
+
     Note: If the elevation of the ground is undefined directly below the radar,
         vis is set to all 0, empty arrays are returned for the others, and
         above_ground is returned as the elevation, regardless of isOffset.
-        This method will raise an IOError if 'maps.hdf5' cannot be loaded.
+
+    Raises IOError if 'maps.hdf5' cannot be loaded.
     """
     if not _SetupRun:
         Setup()
@@ -153,7 +158,7 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     ys = cropHeight - 1 - ys
     xs = cropLeft + xs*_CellSize
     ys = cropLow + ys*_CellSize
-    mask = (((xs-pointx)**2 + (ys-pointy)**2) <= _RANGE**2) & ~np.isnan(heightmap) ## leave noData points
+    mask = (((xs-pointx)**2 + (ys-pointy)**2) <= _RANGE**2) & ~np.isnan(slope) ## leave noData points
 
     distances = _makeDist2D(mask,pointx,pointy,cropLeft,cropLow)
     directions = _getDirections(mask,pointx,pointy,cropLeft,cropLow)
@@ -193,6 +198,9 @@ def store(path,dist,incidence,x,y,elevation,vis=None,antennaDir=None,theta=None,
     theta, phi - float arrays : the direction to each visible point in spherical
         coordinates, with the ends of the antenna being the poles. By default these
         are None. These should be None iff antennaDir is None.
+
+    Returns
+    0 if successful, otherwise -1.
     """
     if not path[-4:] == ".hdf5":
         path = path+".hdf5"

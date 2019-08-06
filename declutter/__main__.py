@@ -18,9 +18,8 @@ def model(args):
     test variations on the model.
     Returns 0 if successful, else -1."""
     import fullModel, path, models
-    if (args.out is not None or args.view) and not args.files:
-        print """Cannot set directory for intermediate files (-o/--out) unless also setting option
-            to store these files (-f/--filles)."""
+    if (args.out is not None or args.view) and not args.files: # arguments don't make sense
+        print """Must also set (-f/--files) to enable storing files."""
         return -1
     if not args.files: # no intermediate files
         return fullModel.processData(args.filename,[args.start,args.end],args.save,args.type,save=args.no)
@@ -33,7 +32,7 @@ def model(args):
         if path.processData(args.filename,[args.start,args.end],args.out,args.type, args.view):
             print "Could not generate point data files."
             return -1
-        if args.no and args.save is None:
+        if args.no and args.save is None: # set name to save radargram as
             if "." in args.filename[-4:]:
                 args.save = args.filename[:-4]+".png"
             else:
@@ -45,17 +44,22 @@ def display(args):
     Returns 0 if successful, else -1."""
     import models
     if args.no and args.save is None:
-        print "set"
         args.save = args.directory + ".png"
     return models.compare(args.directory,args.adjusted,save=args.save)
 
-if __name__ == "__main__":   
+
+# Defines a parser for reading command line arguments
+if __name__ == "__main__":
+    # base command for any part of package
     parser = argparse.ArgumentParser(prog="python -m declutter")
+
+    # will contain separate parsers for 3 different subcommands
     subparsers = parser.add_subparsers(description="""Select one of the commands listed below.
                         Use '<command> -h' to display help for that particular command.
                         For more detailed instructions, see the gitlab page
                         https://gitlab.data.bas.ac.uk/dboyle/radar-declutter/wikis/Contents""")
 
+    # loading a raster into numpy format and storing in maps.hdf5
     loadParse = subparsers.add_parser('load', description="""
                         Takes a raster and generates the slope and aspect of the surface, saving all three
                         these along with the original raster in 'maps.hdf5'. The raster will be projected
@@ -69,6 +73,7 @@ if __name__ == "__main__":
     loadParse.add_argument("-o","--out",help="Specifies a directory to store the raster in if it is resampled or projected.")
     loadParse.set_defaults(func=load)
 
+    # processing a path file to create a radargram
     modelParse = subparsers.add_parser('model', description="""
                         Assuming 'maps.hdf5' exists in the current directory, this takes a series of points and generates
                         an estimate of the radargram expected.""",
@@ -86,6 +91,7 @@ if __name__ == "__main__":
     exclusive.add_argument("-s","--save", help = "The name to save the radargram as.")
     modelParse.set_defaults(func=model)
 
+    # processing already created point data to create a radargram
     displayParse = subparsers.add_parser('display',description="""
                         Assuming 'maps.hdf5' exists in the current directory, this takes a directory of point data and generates
                         an estimate of the radargram expected.""",
@@ -97,6 +103,7 @@ if __name__ == "__main__":
     exclusive.add_argument("-s","--save", help = "The name to save the radargram as.")
     displayParse.set_defaults(func=display)
 
+    # parse sys.argv (command line input) and call appropriate method
     a = parser.parse_args()
     a.func(a)
     

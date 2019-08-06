@@ -18,7 +18,7 @@ import align
 
 __all__ = ["setFigSize", "setTimeStep", "setSpaceStep", "setMaxDist", "setMaxTime",
            "setSteps", "lambertian", "Minnaert", "Min2", "raySpecular", "rayModel",
-           "ray2Model", "specular2Model", "specular4Model", "IDLreflection",
+           "ray2Model", "specular2Model", "specular8Model", "IDLreflection",
            "GaussianDot", "Ricker", "Constant", "IDLWave", "RC", "CosExp", "Sym",
            "direcBroad", "direcNone", "direcIDL", "direcLobes", "loadArrays",
            "processSlice", "models", "titles", "compare", "wiggle", "manyWiggle",
@@ -105,8 +105,8 @@ def ray2Model(theta):
     return np.power(np.maximum(0,np.cos(theta*2)),2)
 def specular2Model(theta):
     return np.power(np.cos(theta),2)
-def specular4Model(theta):
-    return np.power(np.cos(theta),4)
+def specular8Model(theta):
+    return np.power(np.cos(theta),8)
 def IDLreflection(theta):
     return np.power(np.cos(theta),6)
 
@@ -127,6 +127,7 @@ class MidNorm(colors.Normalize):
         self.midpoint = midpoint
         colors.Normalize.__init__(self,vmin,vmax,clip)
     def __call__(self,value,clip=None):
+        # interpolate so that given value is always 50% and linear either side
         x,y = [self.vmin,self.midpoint,self.vmax],[0,0.5,1]
         return np.ma.masked_array(np.interp(value,x,y),np.isnan(value))
 
@@ -231,15 +232,15 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
     convol - float array : A time series of the modelled response.
     """
     m = (distance < env.maxDist)
-    t = (_time(distance[m])/env.dt).astype(int)
+    t = (_time(distance[m])/env.dt).astype(int) # indices into radargram timesteps
     
     intensity = intensityModel(angle[m]) / np.power(distance[m],rFactor)
     
     # directionality 
-    # input function to use
     if theta is not None:
         intensity *= directional(theta[m],phi[m])
-    
+
+    # total intensity recieved at each timestep
     sample = np.array([np.sum(intensity[t==i]) for i in range(env.steps)])
     #sample = np.array([np.sum(t==i) for i in range(_steps)])
     #sample = np.array([np.sum(intensity[t==i])/(1+np.sum(t==i)) for i in range(_steps)])
@@ -254,12 +255,12 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
 
     return convol
 
-
-models = [rayModel]#,ray2Model,specular2Model,specular4Model]
-titles = ["Ray tracing n=1"]#,"Ray tracing n=2","sin(theta)^2","sin(theta)^4"]
+# default models to compare radargrams of
+models = [rayModel,ray2Model,Min2,specular8Model]
+titles = ["Ray tracing n=1","Ray tracing n=2","Minnaert k=2", "spec8"]
 
 def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
-            titles=titles,directional=direcNone,display=True):
+            titles=titles,directional=direcNone,display=True, clip = 0):
     '''Plots the radargram for the points in the given directory once for each
     model given in the models list. Adjusted aligns the y-axis by elevation
     rather than timing. The wave used by the model can also be changed and setting
@@ -272,9 +273,13 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
                     the surface directly beneath the radar with the top of the plot.
     wave - Wave instance : the wave to convolve over the response.
     save - string (optional) : the name of the file to save the radargram in.
-    models - a list of functions of incidence angle to use for modelling the response.
-    titles - a list of names to display above each plot, corresponding to the model
-        in the same index in the models list.
+    models - function list (optional) : Functions of incidence angle to use for modelling the response.
+    titles - string list (optional) : Names to display above each plot, corresponding to the model
+        in the same index in the models list. Both use default lists defined in this module.
+    directional - function (optional) : A function for the directionality of the antenna
+        in terms of spherical coordinates from the ends of the antenna.
+    display - bool (optional) : Display the plot once draw. Default True.
+    clip - float (optional) : Clip X percent from either extreme. Default 0.
 
     Returns
     returnData - 2D float array : The generated radargram data.
@@ -288,26 +293,30 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
     
-    returnData = np.full((len(models),len(files),env.steps),0,float) # 3D - many plots
+    returnData = np.full((len(models),len(files),env.steps),0,float) # 3D - many subplots
     
     p = mp.Pool(mp.cpu_count())
+    # data needed to run across several processors
     data = [(i,name+"/"+files[i],wave,models,directional,env) for i in range(len(files))]
-
-    try:
+    try: 
         for i, ars in progress(p.imap_unordered(worker,data),len(files)):
             returnData[:,i] = ars
-    except IOError as e:
+    except IOError as e: 
         p.close()
         print "\nError reading hdf5 file :\n"+e.message
         return -1
     p.close()
 
-    if adjusted:
+    if adjusted: # align first responses with top of radargram
         for i in range(len(models)):
             returnData[i] =  align.minAlign(returnData[i], env.dx, 200.0)
 
     cells = int(np.ceil(np.sqrt(len(models))))*110
     ys = np.linspace(0, env.maxTime, env.steps)
+
+    # clipping
+    if clip:
+        returnData = np.clip(returnData,np.percentile(returnData,clip),np.percentile(returnData,100-clip))
     
     for j in range(len(models)):
         plt.subplot(cells+j+1)
@@ -401,7 +410,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
 
     cells = int(np.ceil(np.sqrt(len(files))))*110
     
-    out = np.full((len(files),env.steps),0,float)
+    draw = np.full((len(files),env.steps),0,float)
     for i in range(len(files)):
         filename = files[i]
         try:
@@ -409,13 +418,10 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
         except IOError as e:
             print "Could not read h5py file : "+name+"/"+filename
             return -1
-        out[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,rFactor,directional)  
+        draw[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,rFactor,directional)  
 
     if adjusted:
-        out =  align.minAlign(out, env.dx, 200.0)
-    else:
-        draw = out
-        highest, lowest = 0, 0
+        draw =  align.minAlign(draw, env.dx, 200.0)
     ys = np.linspace(0, env.maxTime, env.steps)
     
     # clipping

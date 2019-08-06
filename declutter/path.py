@@ -25,10 +25,10 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True):
     global pool
     """Generates path data for the specified points, including antenna orientation data.
     Parameters:
-    xs float array : array of x coordinates of path.
-    ys float array : array of y coordinates of path.
-    zs float array : array of altitude/elevation above ground along path.
-    isOffset boolean (optional) : whether then given z coordinates are altitude or relative to the ground. Default is relative."""
+    xs - float array : array of x coordinates of path.
+    ys - float array : array of y coordinates of path.
+    zs - float array : array of altitude/elevation above ground along path.
+    isOffset - bool (optional) : whether then given z coordinates are altitude or relative to the ground. Default is relative."""
     os.makedirs(name)
     direction = np.full_like(xs,0,float) # degrees
     direction[0] = 180.0/np.pi*(np.arctan2(xs[0]-xs[1], ys[0]-ys[1]))+180.0

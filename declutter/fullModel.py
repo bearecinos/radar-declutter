@@ -40,7 +40,7 @@ def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=
         if style is not None:
             print "Is "+style+" the correct format?"
         return -1
-    if len(xs) == 0:
+    if len(xs) < 2: # not enough points for a path
         return -1
     if outName is None and save:
         outName = filename[:-4]+".png"
@@ -54,14 +54,20 @@ def _makeDirections(xs,ys):
     ys float array : The y-coordinates of the path.
 
     Returns
-    direction float array : The bearing of the antenna for each point."""
+    direction float array : The bearing of the antenna for each point.
+
+    Fails if path is less than 2 points due to index errors."""
     direction = np.full_like(xs,0,float) # degrees
+    # endpoints are edge cases handled separately
     direction[0] = 180.0/np.pi*(np.arctan2(xs[0]-xs[1], ys[0]-ys[1]))+180.0
     direction[-1] = 180.0/np.pi*(np.arctan2(xs[-2]-xs[-1], ys[-2]-ys[-1]))+180.0
+    
     m = np.full_like(xs,True,bool)
     m[[0,-1]] = False
-    m2 = np.roll(m,-1)
-    m3 = np.roll(m,1)
+    
+    m2 = np.roll(m,-1) # point behind
+    m3 = np.roll(m,1)  # point ahead
+    # central approximation
     direction[m] = 180.0/np.pi*np.arctan2(xs[m2]-xs[m3], ys[m2]-ys[m3])+180.0
     return direction
 
@@ -84,21 +90,23 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     direction = _makeDirections(xs,ys)
     n = len(xs)
 
+    # env holds timestep/range to sample over for radargram and granularity of samples
     env = models.env
     reflectionModels = models.models
     titles = models.titles
     
-    returnData = np.full((len(reflectionModels),n,env.steps),0,float) # 3D - many plots
-    plt.rcParams['axes.formatter.limits'] = [-4,4]
+    returnData = np.full((len(reflectionModels),n,env.steps),0,float) # 3D - many subplots
+    plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=models.figsize)
 
     p = mp.Pool(mp.cpu_count())
+    # arguments needed by processors as global state not shared
     data = [(x,y,z,i,isOffset,angle,reflectionModels) for x,y,i,z,angle in
                             zip(xs,ys,np.arange(n),zs,direction)]
-    try:
+    try: # calculate output across multiple processors
         for i, ars in progress(p.imap_unordered(_worker,data),n):
             returnData[:,i] = ars
-    except IOError as e:
+    except IOError as e: # most likely couldn't find maps.hdf5 in current directory
         p.close()
         print "\nError reading 'maps.hdf5' :\n" + e.message
         return -1
@@ -107,16 +115,17 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     returnData = returnData[:,np.any(returnData[0] != 0,1)] # remove invalid rows
     n = returnData.shape[1]
     
-    
-    if adjusted:
+    if adjusted: # align first response of each point at top of plot
         returnData = align.minAlign(returnData, env.dx)
-    
+
+    # allows pyplot to show subplots in square grid
     cells = int(np.ceil(np.sqrt(len(reflectionModels))))*110
     ys = np.linspace(0, env.maxTime, env.steps)
     for j in range(len(reflectionModels)):
-        plt.subplot(cells+j+1)
-        plt.ylim(env.maxTime,0)
+        plt.subplot(cells+j+1) # subplot index
+        plt.ylim(env.maxTime,0) # t=0 at top of plot
         draw = np.swapaxes(returnData[j],0,1)
+        # colors adjusted so that mean value is 50% grey
         plt.contourf(np.arange(n), ys, draw, 100,norm=models.MidNorm(np.mean(draw)), cmap="Greys")
         plt.title(titles[j])
         plt.colorbar()
@@ -125,8 +134,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     plt.show()
     return returnData
 
-def _worker(args): # x,y,z,i,offset,angle,models array
-    # returns i, height, each response array.
+def _worker(args): 
     # can raise IOError when reading maps.hdf5 in generateMaps
     # or in pointData for pointX.hdf5
     pointx,pointy,pointz,i,isOffset,angle,reflectionModels = args
