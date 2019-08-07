@@ -14,138 +14,18 @@ import multiprocessing as mp
 from progress import progress
 import h5py
 import align
+import modelling
 
-__all__ = ["setFigSize", "setTimeStep", "setSpaceStep", "setMaxDist", "setMaxTime",
-           "setSteps", "lambertian", "Minnaert", "Min2", "raySpecular", "rayModel",
-           "ray2Model", "specular2Model", "specular8Model", "IDLreflection",
-           "GaussianDot", "Ricker", "Constant", "IDLWave", "RC", "CosExp", "Sym",
-           "direcBroad", "direcNone", "direcIDL", "direcLobes", "loadArrays",
-           "processSlice", "models", "titles", "compare", "wiggle", "manyWiggle",
+__all__ = ["loadArrays", "processSlice", "models", "titles", "compare", "wiggle", "manyWiggle",
            "showWave", "showDirectionality"]
 
-class Env:
-    maxDist = 3000.0
-    maxTime = maxDist/1.5e8
-    dt = 1.25e-8
-    dx = dt*1.5e8
-    steps = int(maxTime / dt)
-    
-env = Env()
-
-def loadParameters():
-    global env
-    path = os.path.dirname(__file__)+"/config.npy"
-    if not os.path.exists(path):
-        return -1
-    setups = {"maxDist":setMaxDist, "maxTime":setMaxTime, "dx":setSpaceStep,
-              "dt":setTimeStep, "steps":setSteps}
-    data = np.load(path,allow_pickle=True).item()
-    print "Loading plot parameters from config file:"
-    # Calling in certain orders changes some values back, hence cases
-    if data["steps"] is None or (data["maxDist"] is None and data["maxTime"] is None):
-        for key, val in data.iteritems():
-            if val is not None:
-                setups[key](val)
-                print key+" : "+str(val)
-    elif data["maxDist"] is not None:
-        setMaxDist(data["maxDist"])
-        setSpaceStep(data["maxDist"]/data["steps"])
-        print "maxDist : "+str(data["maxDist"])
-        print "steps : "+str(data["steps"])
-    else:
-        setMaxTime(data["maxTime"])
-        setSpaceStep(data["maxTime"]/data["steps"])
-        print "maxTime : "+str(data["maxTime"])
-        print "steps : "+str(data["steps"])
-    return 0
-
-def storeParameters(env = env):
-    # Rest found from maxDist and dt on loading
-    data = {"maxDist":None,"maxTime":env.maxTime,
-            "dx":None, "dt":env.dt, "steps":None}
-    path = os.path.dirname(__file__)+"/config.npy"
-    np.save(path,data)
-    return 0
-
-figsize = (12,6.8)
-def setFigSize(x,y):
-    """Sets the size of any plots. Default is (12,6.8)"""
-    figsize = (x,y)
-
-# Distance is for speed in air rather than ice. i.e. 3e8, not 1.67e8
-def setTimeStep(dt = 1.25e-8):
-    """Sets the time between sample points in radargrams/wiggle plots.
-    This is in terms of the two-way path i.e. difference in recieved time.
-    Default is 1.25e-8s"""
-    global env
-    env.dt = dt
-    env.dx = dt*1.5e8
-    _setSteps()
-    
-def setSpaceStep(dx = 1.875):
-    """Sets the distance between sample points in the radargram/wiggle plots.
-    This is in terms of the one-way path. Default is 1.875m"""
-    global env
-    env.dx = float(dx)
-    env.dt = dx/1.5e8
-    _setSteps()
-    
-def setMaxDist(d = 3000.0):
-    """Sets the maximum range to consider a surface creating a response from.
-    Default is 3000m."""
-    global env
-    env.maxDist = float(d)
-    env.maxTime = d/1.5e8
-    _setSteps()
-    
-def setMaxTime(t = 2e-5):
-    """Sets the maximum duration to show the radargram/wiggle plot over.
-    Default is 2e-5s."""
-    global env
-    env.maxTime = t
-    env.maxDist = t*1.5e8
-    _setSteps()
-    
-def setSteps(n = 1600):
-    """Sets the number of samples in the radargram/wiggle plot. This
-    changes the maximum range of the plot. Default is 1600."""
-    global env
-    env.steps = int(n)
-    env.maxDist = env.dx*n
-    env.maxTime = env.dt*n
-    
-def _setSteps():
-    global env
-    env.steps = int(env.maxTime / env.dt)
+env = modelling.parameters.env
 
 def _time(distance):
     """Get the time for a wave to return to the radar after reflecting off a
     point 'distance' away."""
     return distance*2.0/3e8
 
-# surface models
-def lambertian(theta):
-    return np.cos(theta)
-def Minnaert(theta,k): 
-    return np.power(np.cos(theta),2*k-1)
-def Min2(theta):
-    return Minnaert(theta,2) # as can't pass lambda to processor pool
-def raySpecular(theta,n=1):
-    return np.power(np.maximum(0,np.cos(theta*2)),n)
-def rayModel(theta):
-    return np.maximum(0,np.cos(theta*2))
-def ray2Model(theta):
-    return np.power(np.maximum(0,np.cos(theta*2)),2)
-def specular2Model(theta):
-    return np.power(np.cos(theta),2)
-def specular8Model(theta):
-    return np.power(np.cos(theta),8)
-def IDLreflection(theta):
-    return np.power(np.cos(theta),6)
-
-##########
-_wavelength = 100
-_freq = 3e8/_wavelength
 
 def bandpass_filter(data, lowcut, highcut, fs, order=5):
     nyq = 0.5 * fs
@@ -164,71 +44,6 @@ class MidNorm(colors.Normalize):
         x,y = [self.vmin,self.midpoint,self.vmax],[0,0.5,1]
         return np.ma.masked_array(np.interp(value,x,y),np.isnan(value))
 
-# wave models - some rely on environment variables
-class GaussianDot:
-    delt = 2.0/(3.0*_freq)
-    align = 0.0
-    def amplitude(self,t):
-        return (-np.exp(0.5)*2*np.pi*_freq*(t-self.delt)*
-                np.exp(-2*np.pi**2*_freq**2*(t-self.delt)**2))
-# looks poor for one dataset but good for other?
-class Ricker:
-    delt = 2.0/(3.0*_freq)
-    align = 0.0
-    def amplitude(self,t):
-        t = t - self.delt
-        return (1-2*np.pi*np.pi*t*t*_freq*_freq)*np.exp(
-            -np.pi*np.pi*_freq*_freq*t*t)
-
-class Constant:
-    delt = 0.0
-    align = 0.0
-    def amplitude(self,t):
-        return t < env.dt 
-class IDLWave:
-    # exp( - (findgen(echo_size)-float(i))^2/50. )
-    # timestep was 240us (2.4e-4 seconds echo length) / 2048 granularity
-    # = 1.172e-7 = 117ns - much longer than our sampling rate
-    # scaling = 1.172e-7
-    align = env.maxTime / 2.0
-    delt = align
-    def __init__(self,c=50.0):
-        self.c = float(c)
-    def amplitude(self,t):
-        t = (t-self.delt)/env.dt
-        return np.exp(-t**2/self.c)
-class RC:
-    align = 0.0
-    def __init__(self,c=5.0):
-        self.c = float(c)
-    def amplitude(self,t):
-        result = np.full_like(t,0.0) # get around vectorizing
-        result[t>0] = np.exp(-t[t>0]/(self.c*1e-6))
-        return result
-    
-class CosExp:
-    delt = 1.1/_freq
-    align = 0.0
-    def amplitude(self,t):
-        p = 2*np.pi*_freq*(t-self.delt)
-        return np.cos(1.5*p)*np.exp(-p*p/16.0)
-class Sym:
-    delt = 0.5/_freq
-    align = 0.0
-    def amplitude(self,t):
-        p = 2*np.pi*_freq*(t-self.delt)
-        return (160*p-56*p*p*p+3*p**5)*np.exp(-p*p/4)/(1.343*64.0)
-
-
-def direcNone(theta,phi):
-    return 1
-def direcBroad(theta,phi):
-    return abs(np.sin(theta))**0.5
-def direcIDL(theta,phi):
-    return np.sin(theta)**6
-def direcLobes(theta,phi):
-    return np.sin(theta)**2*np.sin(3*theta)**2
-
 def loadArrays(filename):
     """Loads the data for a point. Will raise an IOError if the file
     does not exist or has the wrong form."""
@@ -242,8 +57,8 @@ def loadArrays(filename):
     return distance,angle,theta,phi
 
 # Replace GaussianDot with RC
-def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
-                 wave=GaussianDot(),rFactor=0,directional=direcNone):
+def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.raySpecular,
+                 wave=modelling.waves.GaussianDot(),rFactor=0,directional=modelling.directivity.constant):
     """Models the response seen at a single point.
 
     Parameters
@@ -280,7 +95,7 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
     
     # convolution
     w = wave.amplitude(np.linspace(0.0,env.maxTime,env.steps))
-    idx = int(wave.align/env.dt)
+    idx = int(wave.offset/env.dt)
     convol = np.convolve(sample,w)[idx:idx+env.steps]
     
     # Filtering
@@ -289,11 +104,12 @@ def processSlice(distance,angle,theta,phi,intensityModel=raySpecular,
     return convol
 
 # default models to compare radargrams of
-models = [rayModel,ray2Model,Min2,specular8Model]
+models = [modelling.backscatter.rayModel,modelling.backscatter.ray2Model,
+          modelling.backscatter.Min2,modelling.backscatter.specular8Model]
 titles = ["Ray tracing n=1","Ray tracing n=2","Minnaert k=2", "spec8"]
 
-def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
-            titles=titles,directional=direcNone,display=True, clip = 0):
+def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,models=models,
+            titles=titles,directional=modelling.directivity.constant,display=True, clip = 0):
     '''Plots the radargram for the points in the given directory once for each
     model given in the models list. Adjusted aligns the y-axis by elevation
     rather than timing. The wave used by the model can also be changed and setting
@@ -319,7 +135,7 @@ def compare(name,adjusted=False,wave=GaussianDot(),save=None,models=models,
     Returns -1 if the method fails.
     '''
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=modelling.parameters.figsize)
     try:
         files = os.listdir(name)
     except OSError as e:
@@ -375,13 +191,13 @@ def worker(args):
     global env
     i,name,wave,models,directional,env = args
     distance,angle,theta,phi = loadArrays(name)
-
     ars = np.full((len(models),env.steps),0,float)
     for j in range(len(models)):
         ars[j] = processSlice(distance,angle,theta,phi,models[j],wave,directional=directional)
     return i, ars
 
-def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
+def wiggle(filename,intensityModel=modelling.backscatter.raySpecular,
+           wave=modelling.waves.GaussianDot(),display=True):
     """Calculates the response for a single point file.
 
     Parameters
@@ -409,8 +225,9 @@ def wiggle(filename,intensityModel=raySpecular,wave=GaussianDot(),display=True):
         plt.show()
     return ys
 
-def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot(),rFactor=0,
-               directional = direcNone, compareTo = None):
+def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecular,
+               wave=modelling.waves.GaussianDot(),rFactor=0,
+               directional = modelling.directivity.constant, compareTo = None):
     '''Plots the response for the points in the given directory side by side.
 
     Parameters
@@ -433,7 +250,7 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     compareTo was provided. If unsuccessful, returns -1.
     '''
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=figsize)
+    plt.figure(figsize=modelling.parameters.figsize)
     try:
         files = os.listdir(name)
     except OSError as e:
@@ -484,16 +301,17 @@ def manyWiggle(name,adjusted=False,intensityModel=raySpecular,wave=GaussianDot()
     b = compareTo.reshape(-1)
     return np.corrcoef(a,b)[0,1]
     
-def showWave(wave=GaussianDot()):
+def showWave(wave=modelling.waves.GaussianDot()):
     """Plot the given wave over the time the radargram records for."""
     x = np.linspace(-env.maxTime/10.0,env.maxTime,env.steps*2)
     y = wave.amplitude(x)
     plt.plot(x,y)
-    plt.plot([wave.align,wave.align],[np.amin(y),np.amax(y)])
-    plt.plot([wave.align+env.dt,wave.align+env.dt],[np.amin(y),np.amax(y)])
+    plt.plot([wave.offset,wave.offset],[np.amin(y),np.amax(y)])
+    plt.plot([wave.offset+env.dt,wave.offset+env.dt],[np.amin(y),np.amax(y)])
     plt.show()
+    return x,y
 
-def showDirectionality(directional=direcBroad,twoD = False):
+def showDirectivity(directional=modelling.directivity.broad, twoD = False):
     """Creates a spherical plot of the directivity of the antenna.
     Setting twoD causes the model to ignore phi, the azimuth angle."""
     import mpl_toolkits.mplot3d.axes3d as axes3d

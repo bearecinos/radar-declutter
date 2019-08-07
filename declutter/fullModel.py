@@ -13,6 +13,7 @@ import pointData
 import viewshed
 import matplotlib.pyplot as plt
 import align
+from modelling import parameters
 
 def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=True):
     """Takes a gps path and displays a radargram for that path.
@@ -91,18 +92,20 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     n = len(xs)
 
     # env holds timestep/range to sample over for radargram and granularity of samples
-    models.loadParameters()
-    env = models.env
+    #models.loadParameters()
+    parameters.loadParameters()
+    #env = models.env
+    env = parameters.env
     reflectionModels = models.models
     titles = models.titles
     
     returnData = np.full((len(reflectionModels),n,env.steps),0,float) # 3D - many subplots
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=models.figsize)
+    plt.figure(figsize=parameters.figsize)
 
     p = mp.Pool(mp.cpu_count())
     # arguments needed by processors as global state not shared
-    data = [(x,y,z,i,isOffset,angle,reflectionModels) for x,y,i,z,angle in
+    data = [(x,y,z,i,isOffset,angle,reflectionModels, env) for x,y,i,z,angle in
                             zip(xs,ys,np.arange(n),zs,direction)]
     try: # calculate output across multiple processors
         for i, ars in progress(p.imap_unordered(_worker,data),n):
@@ -138,11 +141,13 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
 def _worker(args): 
     # can raise IOError when reading maps.hdf5 in generateMaps
     # or in pointData for pointX.hdf5
-    pointx,pointy,pointz,i,isOffset,angle,reflectionModels = args
-
+    pointx,pointy,pointz,i,isOffset,angle,reflectionModels, env = args
+    
+    models.env = env
+    
     _,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
                                                                   isOffset,angle)
-    ars = np.full((len(reflectionModels),models.env.steps),0,float)
+    ars = np.full((len(reflectionModels), env.steps),0,float)
     for j in range(len(reflectionModels)):
         ars[j] = models.processSlice(dist,incidence,theta,phi,reflectionModels[j])
 

@@ -18,6 +18,7 @@ def model(args):
     test variations on the model.
     Returns 0 if successful, else -1."""
     import fullModel, path, models
+    from modelling import parameters
     
     if (args.out is not None or args.view) and not args.files: # arguments don't make sense
         print """Must also set (-f/--files) to enable storing files."""
@@ -38,14 +39,17 @@ def model(args):
                 args.save = args.filename[:-4]+".png"
             else:
                 args.save = args.filename+".png"
-        models.loadParameters()
+        #models.loadParameters()
+        parameters.loadParameters()
         return models.compare(args.out,save=args.save)
 
 def display(args):
     """Produces a radargram from existing intermediate data.
     Returns 0 if successful, else -1."""
     import models
-    models.loadParameters()
+    from modelling import parameters
+    #models.loadParameters()
+    parameters.loadParameters() 
     if args.no and args.save is None:
         args.save = args.directory + ".png"
     return models.compare(args.directory,args.adjusted,save=args.save)
@@ -71,7 +75,7 @@ def setParams(args):
             return -1
     
     d = {"steps":args.steps, "maxDist":args.maxdist, "maxTime":args.maxtime, "dx":args.dx, "dt":args.dt}
-    np.save(os.path.dirname(__file__)+"/config.npy", d)
+    np.save(os.path.dirname(__file__)+"/modelling/config.npy", d)
     return 0
 
 # Defines a parser for reading command line arguments
