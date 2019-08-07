@@ -7,6 +7,11 @@ from projection import *
 import os
 import h5py
 from errors import RasterError
+
+
+import path
+from modelling import parameters
+
 __all__ = ["justAspect","justSlope","justHeightmap","makeAll","rastersToNumpy"]
 
 _NODATA = np.nan
@@ -25,6 +30,34 @@ def loadRaster(source):
     except RuntimeError as e:
         if "ERROR 000732" in e.message:
             raise RasterError("input raster not recognised: "+source)
+
+
+# take path, generate bounds as min/max x and y then push out by param.env.maxDist
+# can only crop after projecting
+# do in arcpy (changes values?) or numpy
+# No way to remove data from array, just removes name, hence overwrite whole file
+
+def pathCrop(pathName, crop = [0,0]):
+    parameters.loadParameters()
+    d = parameters.env.maxDist
+    xs,ys,_ = path.loadData(pathName,crop)
+    with h5py.File("maps.hdf5","r") as f:
+        xmin,ymin,cellsize = f["meta"][()]
+        hmap = f["heightmap"][()]
+        height,width = hmap.shape
+        xBounds = [max(0,int((np.amin(xs)-d-xmin)/cellsize)),
+                   min(width,int((np.amax(xs)+d-xmin)/cellsize)+1)]
+        yBounds = [height-1-min(height-1,int((np.amax(ys)+d-ymin)/cellsize)),
+                   min(height, int(height-(np.amin(ys)-d-ymin)/cellsize))]
+        slope = f["slope"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
+        aspect = f["aspect"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
+        
+    with h5py.File("maps.hdf5","w") as f:
+        f.create_dataset("heightmap",compression="szip",data = hmap[yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]])
+        f.create_dataset("slope",compression="szip",data = slope)
+        f.create_dataset("aspect",compression="szip",data = aspect)
+        f["meta"] = np.array([xmin+xBounds[0]*cellsize, ymin+(height-yBounds[1])*cellsize,cellsize])
+    return 0
 
 def resample(raster,cellSize,outDir=None):
     """Returns the original raster or a resampled version if required. Size to sample
@@ -51,6 +84,7 @@ def resample(raster,cellSize,outDir=None):
     elif cellSize != inSize:
         print "Resampling to a cell size of {0}".format(cellSize)
         arcpy.Resample_management(raster, out, str(cellSize), "CUBIC")
+        print "New name: "+out
         return arcpy.Raster(out)
     else: # already correct size
         return raster
@@ -81,6 +115,7 @@ def coordinateSystem(raster,sampleLat,sampleLon,outDir=None):
     else: # too close to poles for UTM zones
         if "UPS" not in e.spatialReference.name:
             print "Projecting to UPS coordinate system."
+            print "New name: "+out
             return project(raster,determineSystem(sampleLat,sampleLon),out)
     return raster
 
@@ -126,7 +161,7 @@ def justAspect(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     
     try:
         with h5py.File("maps.hdf5","a") as f:
-            f["aspect"] = aspect
+            f.create_dataset("aspect",compression="szip",data = aspect)
             if "meta" in f:
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
@@ -164,7 +199,7 @@ def justSlope(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)
     try:
         with h5py.File("maps.hdf5","a") as f:
-            f["slope"] = slope
+            f.create_dataset("slope",compression="szip",data = slope)
             if "meta" in f:
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
@@ -201,7 +236,7 @@ def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
 
     try:
         with h5py.File("maps.hdf5","a") as f:
-            f["heightmap"] = heightmap
+            f.create_dataset("heightmap",compression="szip",data = heightmap)
             if "meta" in f:
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
@@ -245,9 +280,9 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
         heightmap = arcpy.RasterToNumPyArray(raster,corner,nodata_to_value=_NODATA)
         
         with h5py.File("maps.hdf5","w") as f:
-            f["heightmap"] = heightmap
-            f["aspect"] = aspect
-            f["slope"] = slope
+            f.create_dataset("heightmap",compression="szip",data = heightmap)
+            f.create_dataset("aspect",compression="szip",data = aspect)
+            f.create_dataset("slope",compression="szip",data = slope)
             f["meta"] = np.array([corner.X,corner.Y,cellSize])
     except (RasterError,IOError) as e:
         print "Error making arrays for 'maps.hdf5' : "+e.message
@@ -290,9 +325,9 @@ def rastersToHdf(heightmap,aspect=None,slope=None):
 
     try:
         with h5py.File("maps.hdf5","w") as f:
-            f["heightmap"] = heightmap
-            f["aspect"] = aspect
-            f["slope"] = slope
+            f.create_dataset("heightmap",compression="szip",data = heightmap)
+            f.create_dataset("aspect",compression="szip",data = aspect)
+            f.create_dataset("slope",compression="szip",data = slope)
             f["meta"] = np.array([corner.X,corner.Y,cellSize])
     except IOError:
         print "Error: Could not write arrays to 'maps.hdf5'"

@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import align
 from modelling import parameters
 
-def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=True):
+def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=True, parallel=True):
     """Takes a gps path and displays a radargram for that path.
 
     Parameters
@@ -45,7 +45,7 @@ def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=
         return -1
     if outName is None and save:
         outName = filename[:-4]+".png"
-    return _genPath(xs,ys,zs,outName,False,adjusted)
+    return _genPath(xs,ys,zs,outName,False,adjusted, parallel)
 
 def _makeDirections(xs,ys):
     """Calculates the direction the antenna is facing at each point based on the adjacent points.
@@ -72,7 +72,7 @@ def _makeDirections(xs,ys):
     direction[m] = 180.0/np.pi*np.arctan2(xs[m2]-xs[m3], ys[m2]-ys[m3])+180.0
     return direction
 
-def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
+def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
     global pool
     """Displays the radargram for a path.
 
@@ -108,8 +108,13 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False):
     data = [(x,y,z,i,isOffset,angle,reflectionModels, env) for x,y,i,z,angle in
                             zip(xs,ys,np.arange(n),zs,direction)]
     try: # calculate output across multiple processors
-        for i, ars in progress(p.imap_unordered(_worker,data),n):
-            returnData[:,i] = ars
+        if parallel:
+            for i, ars in progress(p.imap_unordered(_worker,data),n):
+                returnData[:,i] = ars
+        else: # non-parallel option
+            for j in range(n):
+                i,ars = _worker(data[j])
+                returnData[:,i] = ars
     except IOError as e: # most likely couldn't find maps.hdf5 in current directory
         p.close()
         print "\nError reading 'maps.hdf5' :\n" + e.message

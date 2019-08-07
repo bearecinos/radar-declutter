@@ -2,12 +2,9 @@
 the radargram/wiggle plots seen. Also contains a range of methods to allow
 the model to be altered, such as the backscatter model or the wave to convolve
 with the result."""
-import math
 import numpy as np
-import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-from matplotlib import cm
 import os
 from scipy import signal
 import multiprocessing as mp
@@ -58,7 +55,7 @@ def loadArrays(filename):
 
 # Replace GaussianDot with RC
 def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.raySpecular,
-                 wave=modelling.waves.GaussianDot(),rFactor=0,directional=modelling.directivity.constant):
+                 wave=modelling.waves.GaussianDot(),rFactor=0.0,directional=modelling.directivity.constant):
     """Models the response seen at a single point.
 
     Parameters
@@ -104,12 +101,15 @@ def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.r
     return convol
 
 # default models to compare radargrams of
-models = [modelling.backscatter.rayModel,modelling.backscatter.ray2Model,
-          modelling.backscatter.Min2,modelling.backscatter.specular8Model]
-titles = ["Ray tracing n=1","Ray tracing n=2","Minnaert k=2", "spec8"]
+#models = [modelling.backscatter.rayModel,modelling.backscatter.ray2Model,
+   #       modelling.backscatter.Min2,modelling.backscatter.specular8Model]
+#titles = ["Ray tracing n=1","Ray tracing n=2","Minnaert k=2", "spec8"]
+models = [modelling.backscatter.Min2]
+titles = ["title"]
 
 def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,models=models,
-            titles=titles,directional=modelling.directivity.constant,display=True, clip = 0):
+            titles=titles,directional=modelling.directivity.constant,display=True, clip = 0
+            ,rFactor = 0.0, parallel = True):
     '''Plots the radargram for the points in the given directory once for each
     model given in the models list. Adjusted aligns the y-axis by elevation
     rather than timing. The wave used by the model can also be changed and setting
@@ -146,10 +146,15 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
     
     p = mp.Pool(mp.cpu_count())
     # data needed to run across several processors
-    data = [(i,name+"/"+files[i],wave,models,directional,env) for i in range(len(files))]
-    try: 
-        for i, ars in progress(p.imap_unordered(worker,data),len(files)):
-            returnData[:,i] = ars
+    data = [(i,name+"/"+files[i],wave,models,directional,env,rFactor) for i in range(len(files))]
+    try:
+        if parallel:
+            for i, ars in progress(p.imap_unordered(worker,data),len(files)):
+                returnData[:,i] = ars
+        else: # non-parallel option. Runs on same thread so get proper error reporting
+            for j in progress(range(len(files))):
+                i,ars = worker(data[j])
+                returnData[:,i] = ars
     except IOError as e: 
         p.close()
         print "\nError reading hdf5 file :\n"+e.message
@@ -189,11 +194,12 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
 
 def worker(args):
     global env
-    i,name,wave,models,directional,env = args
+    i,name,wave,models,directional,env,rFactor = args
     distance,angle,theta,phi = loadArrays(name)
     ars = np.full((len(models),env.steps),0,float)
     for j in range(len(models)):
-        ars[j] = processSlice(distance,angle,theta,phi,models[j],wave,directional=directional)
+        ars[j] = processSlice(distance,angle,theta,phi,models[j],wave,directional=directional,
+                              rFactor = rFactor)
     return i, ars
 
 def wiggle(filename,intensityModel=modelling.backscatter.raySpecular,

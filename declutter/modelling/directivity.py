@@ -1,5 +1,5 @@
 import numpy as np
-# each model is a method of type float -> float
+# each model is a method of type float * float -> float
 # should work with numpy arrays
 # must use def rather than lambdas in order to pass with multiprocessing
 

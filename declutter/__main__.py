@@ -63,10 +63,10 @@ def setParams(args):
         print "Cannot show and set at same time. Do not use --show with other options."
         return -1
     elif args.show:
-        d = np.load(os.path.dirname(__file__)+"/config.npy", allow_pickle=True).item()
+        d = np.load(os.path.dirname(__file__)+"/modelling/config.npy", allow_pickle=True).item()
         for key, val in d.items():
             if val is not None:
-                print key + " = "+val
+                print key + " = "+str(val)
         return 0
     if (args.steps is not None and (args.maxdist is not None or args.maxtime is not None) and
         (args.dx is not None or args.dt is not None)):

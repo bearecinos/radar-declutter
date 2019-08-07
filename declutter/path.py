@@ -21,7 +21,7 @@ def workerCall(args):
         return pointData.store(args[6], dist,incidence,args[0],args[1],
                            elevation, None, args[4], theta, phi)
     
-def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True):
+def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True,parallel=True):
     global pool
     """Generates path data for the specified points, including antenna orientation data.
     Parameters:
@@ -44,8 +44,12 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True):
              x,y,z,angle,i in zip(xs,ys,zs,direction,np.arange(steps))]
     fail = False
     try:
-        for r in progress(pool.imap_unordered(workerCall,data),steps):
-            pass
+        if parallel:
+            for r in progress(pool.imap_unordered(workerCall,data),steps):
+                pass
+        else:
+            for i in progress(range(steps)):
+                result = workerCall(data[i])
     except IOError:
         pool.close()
         print "\nError reading 'maps.hdf5' :\n" + e.message
@@ -53,7 +57,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True):
     pool.close()
     return 0     
 
-def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True):
+def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True, parallel = True):
     """Generates path data for the points in the given file.
 
     Parameters
@@ -80,7 +84,7 @@ def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True):
         return -1
     if outName is None:
         outName = filename[:-4]
-    return _genPath(xs,ys,zs,outName,False,save_visible)   
+    return _genPath(xs,ys,zs,outName,False,save_visible, parallel)   
 
 def loadData(filename, crop = [0,0], style = None):
     """Takes a file of points and returns three arrays of x-coordinate, y-coordinate, and elevation.

@@ -207,12 +207,17 @@ def store(path,dist,incidence,x,y,elevation,vis=None,antennaDir=None,theta=None,
     try:
         with h5py.File(path,"w") as f:
             if vis is not None:
-                f["visible"] = vis
-            f["distance"] = dist
-            f["incidence"] = incidence
+                f.create_dataset("visible",compression="szip",data = vis)
+                #f["visible"] = vis
+            f.create_dataset("distance",compression="szip",data = dist)
+            f.create_dataset("incidence",compression="szip",data = incidence)
+            #f["distance"] = dist
+            #f["incidence"] = incidence
             if antennaDir is not None:
-                f["antennaTheta"] = theta
-                f["antennaPhi"] = phi
+                f.create_dataset("antennaTheta",compression="szip",data = theta)
+                f.create_dataset("antennaPhi",compression="szip",data = phi)
+                #f["antennaTheta"] = theta
+                #f["antennaPhi"] = phi
             f["meta"] = np.array([x,y,elevation,antennaDir])
     except IOError as e:
         print "Could not write to hdf5 file : "+e.message
