@@ -8,6 +8,7 @@ import matplotlib.colors as colors
 import os
 from scipy import signal
 import multiprocessing as mp
+import threading
 from progress import progress
 import h5py
 import align
@@ -134,6 +135,7 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
     returnData - 2D float array : The generated radargram data.
     Returns -1 if the method fails.
     '''
+    print env
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=modelling.parameters.figsize)
     try:
@@ -255,6 +257,7 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
     The 2D array of predicted responses, or the normalised correlation coefficient if
     compareTo was provided. If unsuccessful, returns -1.
     '''
+    print env
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=modelling.parameters.figsize)
     try:

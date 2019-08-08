@@ -12,14 +12,14 @@ import os
 
 def workerCall(args):
     # args = (x,y,z,isOffset,angle,pathName)
-    vis,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-2])
+    vis,visCorner,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-2])
 
     if args[5]:
         return pointData.store(args[6],dist,incidence,args[0],args[1],
-                           elevation, vis, args[4], theta, phi)
+                           elevation, vis,visCorner, args[4], theta, phi)
     else:
         return pointData.store(args[6], dist,incidence,args[0],args[1],
-                           elevation, None, args[4], theta, phi)
+                           elevation, None,None, args[4], theta, phi)
     
 def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True,parallel=True):
     global pool

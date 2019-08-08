@@ -53,9 +53,9 @@ def pathCrop(pathName, crop = [0,0]):
         aspect = f["aspect"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
         
     with h5py.File("maps.hdf5","w") as f:
-        f.create_dataset("heightmap",compression="szip",data = hmap[yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]])
-        f.create_dataset("slope",compression="szip",data = slope)
-        f.create_dataset("aspect",compression="szip",data = aspect)
+        f.create_dataset("heightmap",compression="gzip",data = hmap[yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]])
+        f.create_dataset("slope",compression="gzip",data = slope)
+        f.create_dataset("aspect",compression="gzip",data = aspect)
         f["meta"] = np.array([xmin+xBounds[0]*cellsize, ymin+(height-yBounds[1])*cellsize,cellsize])
     return 0
 
@@ -161,7 +161,7 @@ def justAspect(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     
     try:
         with h5py.File("maps.hdf5","a") as f:
-            f.create_dataset("aspect",compression="szip",data = aspect)
+            f.create_dataset("aspect",compression="gzip",data = aspect)
             if "meta" in f:
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
@@ -199,7 +199,7 @@ def justSlope(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)
     try:
         with h5py.File("maps.hdf5","a") as f:
-            f.create_dataset("slope",compression="szip",data = slope)
+            f.create_dataset("slope",compression="gzip",data = slope)
             if "meta" in f:
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
@@ -236,7 +236,7 @@ def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
 
     try:
         with h5py.File("maps.hdf5","a") as f:
-            f.create_dataset("heightmap",compression="szip",data = heightmap)
+            f.create_dataset("heightmap",compression="gzip",data = heightmap)
             if "meta" in f:
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
@@ -280,9 +280,9 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
         heightmap = arcpy.RasterToNumPyArray(raster,corner,nodata_to_value=_NODATA)
         
         with h5py.File("maps.hdf5","w") as f:
-            f.create_dataset("heightmap",compression="szip",data = heightmap)
-            f.create_dataset("aspect",compression="szip",data = aspect)
-            f.create_dataset("slope",compression="szip",data = slope)
+            f.create_dataset("heightmap",compression="gzip",data = heightmap)
+            f.create_dataset("aspect",compression="gzip",data = aspect)
+            f.create_dataset("slope",compression="gzip",data = slope)
             f["meta"] = np.array([corner.X,corner.Y,cellSize])
     except (RasterError,IOError) as e:
         print "Error making arrays for 'maps.hdf5' : "+e.message
@@ -325,9 +325,9 @@ def rastersToHdf(heightmap,aspect=None,slope=None):
 
     try:
         with h5py.File("maps.hdf5","w") as f:
-            f.create_dataset("heightmap",compression="szip",data = heightmap)
-            f.create_dataset("aspect",compression="szip",data = aspect)
-            f.create_dataset("slope",compression="szip",data = slope)
+            f.create_dataset("heightmap",compression="gzip",data = heightmap)
+            f.create_dataset("aspect",compression="gzip",data = aspect)
+            f.create_dataset("slope",compression="gzip",data = slope)
             f["meta"] = np.array([corner.X,corner.Y,cellSize])
     except IOError:
         print "Error: Could not write arrays to 'maps.hdf5'"

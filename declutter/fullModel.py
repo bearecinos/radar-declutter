@@ -34,6 +34,7 @@ def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=
     The radargram output if successful, otherwise -1.
 
     """
+    print parameters.env
     try:
         xs, ys, zs = path.loadData(filename, crop, style)
     except IOError:
@@ -92,9 +93,6 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
     n = len(xs)
 
     # env holds timestep/range to sample over for radargram and granularity of samples
-    #models.loadParameters()
-    parameters.loadParameters()
-    #env = models.env
     env = parameters.env
     reflectionModels = models.models
     titles = models.titles
@@ -150,7 +148,7 @@ def _worker(args):
     
     models.env = env
     
-    _,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
+    _,_,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
                                                                   isOffset,angle)
     ars = np.full((len(reflectionModels), env.steps),0,float)
     for j in range(len(reflectionModels)):

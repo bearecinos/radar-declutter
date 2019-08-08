@@ -39,17 +39,12 @@ def model(args):
                 args.save = args.filename[:-4]+".png"
             else:
                 args.save = args.filename+".png"
-        #models.loadParameters()
-        parameters.loadParameters()
         return models.compare(args.out,save=args.save)
 
 def display(args):
     """Produces a radargram from existing intermediate data.
     Returns 0 if successful, else -1."""
     import models
-    from modelling import parameters
-    #models.loadParameters()
-    parameters.loadParameters() 
     if args.no and args.save is None:
         args.save = args.directory + ".png"
     return models.compare(args.directory,args.adjusted,save=args.save)

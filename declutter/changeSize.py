@@ -11,7 +11,7 @@ def resize(cellsize):
 
     Returns
     0 if successful. -1 otherwise (due to incorrect cell size)."""
-    with h5py.File("maps.hdf5","r+") as f:
+    with h5py.File("maps.hdf5","r") as f:
         line = f["meta"][()] # min-x coord, min-y coord, cellSize
         originalSize = line[-1]
         if cellsize % originalSize != 0: # not a multiple
@@ -21,12 +21,18 @@ def resize(cellsize):
         factor = int(cellsize/originalSize)
         
         # keeps cell corresponding to (min-x, min-y)
-        f["heightmap"] = f["heightmap"][::-factor,::factor][::-1]
-        f["aspect"] = f["aspect"][::-factor,::factor][::-1]
-        f["slope"] = f["slope"][::-factor,::factor][::-1]
+        heightmap = f["heightmap"][::-factor,::factor][::-1]
+        aspect = f["aspect"][::-factor,::factor][::-1]
+        slope = f["slope"][::-factor,::factor][::-1]
 
         # update metaData with new cell size
         line[-1] = cellsize
+
+        
+    with h5py.File("maps.hdf5","w") as f:
+        f.create_dataset("heightmap", compression="gzip", data = heightmap)
+        f.create_dataset("slope", compression="gzip", data = slope)
+        f.create_dataset("aspect", compression="gzip", data = aspect)
         f["meta"] = line
     return 0
     

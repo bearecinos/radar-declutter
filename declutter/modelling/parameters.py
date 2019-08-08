@@ -5,39 +5,44 @@ import numpy as np
 wavelength = 100
 freq = 3e8/wavelength # 3 MHz
 
+
+
 class Env:
     maxDist = 3000.0
     maxTime = maxDist/1.5e8
     dt = 1.25e-8
     dx = dt*1.5e8
     steps = int(maxTime / dt)
-    
-env = Env()
+    def __str__(self):
+        return "Settings: maxTime = "+str(self.maxTime)+", dt = "+str(self.dt)
+
+# unclear how to in python, but should only ever have 1 instance created
+# e.g. singleton design pattern
+env = Env() # parameters loaded at end of module
 
 def loadParameters():
+    global env
+    # refresh defaults before loading changes
+    setMaxTime()
+    setTimeStep()
+    
     path = os.path.dirname(__file__)+"/config.npy"
     if not os.path.exists(path):
         return -1
     setups = {"maxDist":setMaxDist, "maxTime":setMaxTime, "dx":setSpaceStep,
               "dt":setTimeStep, "steps":setSteps}
     data = np.load(path,allow_pickle=True).item()
-    print "Loading plot parameters from config file:"
     # Calling in certain orders changes some values back, hence cases
     if data["steps"] is None or (data["maxDist"] is None and data["maxTime"] is None):
         for key, val in data.iteritems():
             if val is not None:
                 setups[key](val)
-                print key+" : "+str(val)
     elif data["maxDist"] is not None:
         setMaxDist(data["maxDist"])
         setSpaceStep(data["maxDist"]/data["steps"])
-        print "maxDist : "+str(data["maxDist"])
-        print "steps : "+str(data["steps"])
     else:
         setMaxTime(data["maxTime"])
         setSpaceStep(data["maxTime"]/data["steps"])
-        print "maxTime : "+str(data["maxTime"])
-        print "steps : "+str(data["steps"])
     return 0
 
 def storeParameters(env = env):
@@ -88,8 +93,11 @@ def setSteps(n = 1600):
 def _setSteps():
     env.steps = int(env.maxTime / env.dt)
 
+loadParameters()
+
 figsize = (12,6.8)
 def setFigSize(x,y):
     """Sets the size of any plots. Default is (12,6.8)"""
     global figsize
     figsize = (x,y)
+    

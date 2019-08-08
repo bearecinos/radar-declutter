@@ -177,10 +177,10 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
         theta, phi = _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDir)
         theta, phi = theta[vis], phi[vis]
     trueDist, incidence = trueDist[vis], incidence[vis]
-    return vis,trueDist,incidence,theta,phi,elevation
+    return vis,(cropLeft,cropLow),trueDist,incidence,theta,phi,elevation
 
 
-def store(path,dist,incidence,x,y,elevation,vis=None,antennaDir=None,theta=None,phi=None):
+def store(path,dist,incidence,x,y,elevation,vis=None,visCorner = None, antennaDir=None,theta=None,phi=None):
     """Saves the data generated for each point in a .hdf5 file.
 
     Parameters:
@@ -207,15 +207,16 @@ def store(path,dist,incidence,x,y,elevation,vis=None,antennaDir=None,theta=None,
     try:
         with h5py.File(path,"w") as f:
             if vis is not None:
-                f.create_dataset("visible",compression="szip",data = vis)
+                f.create_dataset("visible",compression="gzip",data = vis)
+                f["corner"] = visCorner
                 #f["visible"] = vis
-            f.create_dataset("distance",compression="szip",data = dist)
-            f.create_dataset("incidence",compression="szip",data = incidence)
+            f.create_dataset("distance",compression="gzip",data = dist)
+            f.create_dataset("incidence",compression="gzip",data = incidence)
             #f["distance"] = dist
             #f["incidence"] = incidence
             if antennaDir is not None:
-                f.create_dataset("antennaTheta",compression="szip",data = theta)
-                f.create_dataset("antennaPhi",compression="szip",data = phi)
+                f.create_dataset("antennaTheta",compression="gzip",data = theta)
+                f.create_dataset("antennaPhi",compression="gzip",data = phi)
                 #f["antennaTheta"] = theta
                 #f["antennaPhi"] = phi
             f["meta"] = np.array([x,y,elevation,antennaDir])
