@@ -5,6 +5,7 @@ import os
 import viewshed
 from time import clock
 import h5py
+from modelling import parameters
 
 __all__ = ["Setup", "generateMaps"]
 
@@ -13,7 +14,7 @@ __all__ = ["Setup", "generateMaps"]
 #_PATH, _antennaDir = "point2", None
 
 #_cropWidth, _cropHeight = 210, 210
-_RANGE = 3000.0
+#_RANGE = 3000.0
 _SetupRun = False
 _NODATA = np.nan
 
@@ -22,7 +23,9 @@ def Setup():
     """Loads the full numpy arrays to be cropped for each point.
 
 `   Raises IOError if maps.hdf5 cannot be loaded."""
-    global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize, _cropSize
+    global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize, _cropSize, _RANGE
+
+    _RANGE = parameters.env.maxDist
 
     with h5py.File('maps.hdf5',"r") as f:
         _fullHeightmap = f["heightmap"][()]
@@ -147,7 +150,7 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
         # TODO: replace returning above_ground as elevation with NaN then check for in other methods
         if antennaDir is not None:
             theta, phi = np.empty(0), np.empty(0)
-        return np.full(heightmap.shape,0,int), np.empty(0), np.empty(0), theta, phi, above_ground
+        return np.full(heightmap.shape,0,int),(cropLeft,cropLow), np.empty(0), np.empty(0), theta, phi, above_ground
     
     if isOffset:
         elevation = groundHeight+above_ground

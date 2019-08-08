@@ -25,68 +25,100 @@ def passingAngle(fileName):
 def flyBy(pathName, steps = 10, timeInterval = [0,1.5e-5]):
     pass
 
-def pathOnSurface(dirname):
-    global fig, ax
-    #fig=plt.figure(figsize=(10,7))
-    #ax=fig.gca(projection='3d')
-    #plt.subplots_adjust(0,0,1,1)
-    xs,ys = [],[]
+def matchMap(grid,left,low,cropLeft,cropLow,w,h,cellSize):
+    height = grid.shape[0]
+    l = int((cropLeft-left)/cellSize)
+    r = int(l+w)
+    lower = int(height - (cropLow-low)/cellSize)
+    upper = int(lower - h)
+    return grid[upper:lower,l:r]
 
+
+def pathOnSurface(dirname,twoD = False):
+    global fig, ax
+    if not twoD:
+        fig=plt.figure(figsize=(10,7))
+        ax=fig.gca(projection='3d')
+        plt.subplots_adjust(0,0,1,1)
+    xs,ys,zs = [], [],[]
+    surfxs, surfys, surfzs, aspects = [],[],[],[]
     grid, left, low, cellSize = loadMap()
+    with h5py.File("maps.hdf5","r") as f:
+        slope = f["slope"][()]
+        aspect = f["aspect"][()]
+
     height = grid.shape[0]
     files = os.listdir(dirname)
+    files.sort(key=lambda x : int(x[5:-5]))
+
+    cols = plt.cm.jet
+    
     i = 0.0
     for f in files:
         i += 1.0
         visible,visCorner,distance,angle,_,_,pointx,pointy,pointz,antDir = loadPoint(dirname+"/"+f)
+        if len(distance) == 0:
+            continue # invalid point
         xs.append(pointx)
         ys.append(pointy)
+        zs.append(pointz)
         #drawPoint(pointx,pointy,pointz,antDir,50)
 
-        # mark nearest surface for each point
-        idx = np.argmin(distance)
-        inds = [a[idx] for a in np.where(visible)]
-        print inds
-        inds[1] = visible.shape[0]-1-inds[1]
-        inds = [inds[0]*cellSize+visCorner[0],inds[1]*cellSize+visCorner[1]]
+        s = matchMap(slope,left,low,visCorner[0],visCorner[1],visible.shape[1],visible.shape[0],cellSize)
+        a = matchMap(aspect,left,low,visCorner[0],visCorner[1],visible.shape[1],visible.shape[0],cellSize)
+        g = matchMap(grid,left,low,visCorner[0],visCorner[1],visible.shape[1],visible.shape[0],cellSize)
+        
+        dx = int((visCorner[0]-left)/cellSize)
+        dy = int((visCorner[1] - low)/cellSize)
+        
+        
+        # way of detecting wall (may be very data dependent)
+        # closes point which is : visible, angle less than 5 degrees to horizon from radar,
+        #                         at least 400m away, at least 20m above radar
+        idx = np.argmin(distance + (abs((g[visible]-pointz)/distance) > np.sin(5*np.pi/180.0))*5000
+                        + (distance < 400)*5000 + (g[visible] < pointz+20)*5000)
 
-        print (pointx-visCorner[0])/cellSize
-        print np.amin(np.hypot(np.where(visible)[0]-605,np.where(visible)[1]-605))
-        print i
-        if i == 6:
-            plt.close()
-            plt.imshow(visible)
-            plt.figure()
-            a = np.full_like(visible,0.0,float)
-            a[visible] = distance
-            a[a>5000] = np.nan
-            print np.sum(a < 0)
-            a[a < 0] = np.nan
-            plt.imshow(a)
-            print "here"
-            
-            #plt.colorbar()
-            plt.show()
-            return
-            print inds
-            print pointx
+        # y then x
+        inds = [a[idx] for a in np.where(visible)]
+
+        inds[0] = visible.shape[0]-1-inds[0]
+        inds = [inds[0]*cellSize+visCorner[1],inds[1]*cellSize+visCorner[0]]
+        
+        z = grid[int(height-1-(inds[0]-low)/cellSize),int((inds[1]-left)/cellSize)]
+        aspects.append(aspect[int(height-1-(inds[0]-low)/cellSize),int((inds[1]-left)/cellSize)])
+        c = cols(i/len(files))
+
+        if twoD:
+            plt.plot([pointx,inds[1]],[pointy,inds[0]],color=c)
         else:
-            continue
-        
-        z = grid[int(height-1-(inds[1]-low)/cellSize),int((inds[0]-left)/cellSize)]
-        c = i/len(files)
-        #ax.scatter([inds[0]],[inds[1]],[z],color=[c,0,1-c],linewidths=2,zorder=20)
-        ax.plot([pointx,inds[0]],[pointy,inds[1]],[pointz,z],color="r")
-        
+            ax.plot([pointx,inds[1]],[pointy,inds[0]],[pointz,z],color=c)
+
+
+        surfxs.append(inds[1])
+        surfys.append(inds[0])
+        surfzs.append(z)
+
+    if twoD:
+        plt.scatter(xs,ys,color="k",linewidths=2)
+    else:
+        ax.scatter(xs,ys,zs,color="k",linewidths=2)
+    #ax.scatter(surfxs,surfys,surfzs,color="r",linewidths=2)
         
     ##### how far extra around bounds of path
     #extend = 1000
-    extend = 100
+    extend = 700
 
-    drawMesh(xs,ys,extend,True,0.5) 
+    if not twoD:
+        drawMesh(xs,ys,extend,True,0.5) 
         
     plt.show()
     plt.close()
+
+    incidence = np.array([(xs[i]-surfxs[i])*np.sin(aspects[i])+(ys[i]-surfys[i])*np.cos(aspects[i]) for i in range(len(xs))])
+    incidence /= np.hypot([(xs[i]-surfxs[i]) for i in range(len(xs))],[(ys[i]-surfys[i]) for i in range(len(xs))])
+
+    incidence = np.arccos(incidence)*180.0/np.pi
+    return incidence
 
 def markSurfaces(filename,start,end):
     global fig,ax
@@ -145,6 +177,7 @@ def markSurfaces(filename,start,end):
     plt.close()
     return
 
+
 def drawPoint(x,y,z,antDir=None,length = 150):
     ax.scatter([x],[y],[z],color="k",linewidths=2,zorder=20)
     if antDir is not None:
@@ -155,21 +188,19 @@ def drawMesh(x,y,distance,back=False,alpha=0.2):
     grid, left, low, cellSize = loadMap()
     height,width = grid.shape
 
-    ys,xs = np.indices(grid.shape)
-    ys = height-1-ys
-    xs = left + cellSize*xs
-    ys = low + cellSize*ys
-
     minCoords = (np.amin(x)-left)/cellSize, height-1-(np.amin(y)-low)/cellSize
     maxCoords = (np.amax(x)-left)/cellSize, height-1-(np.amax(y)-low)/cellSize
     #pointCoords = (x-left)/cellSize, height-1-(y-low)/cellSize
     dist = distance/cellSize
     grid = grid[int(maxCoords[1]-dist):int(minCoords[1]+dist),
                 int(minCoords[0]-dist):int(maxCoords[0]+dist)]
-    xs = xs[int(maxCoords[1]-dist):int(minCoords[1]+dist),
-                int(minCoords[0]-dist):int(maxCoords[0]+dist)]
-    ys = ys[int(maxCoords[1]-dist):int(minCoords[1]+dist),
-                int(minCoords[0]-dist):int(maxCoords[0]+dist)]
+
+    ys,xs = np.indices(grid.shape)
+    ys = grid.shape[0]-1-ys
+    
+    xs = left + cellSize*(xs+int(minCoords[0]-dist))
+    ys = low + cellSize*(ys+height-int(minCoords[1]+dist))
+
 
     if not back:
         fig=plt.figure(figsize=(10,7))
