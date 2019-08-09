@@ -5,50 +5,41 @@ import numpy as np
 wavelength = 100
 freq = 3e8/wavelength # 3 MHz
 
-
-
 class Env:
-    maxDist = 3000.0
-    maxTime = maxDist/1.5e8
     dt = 1.25e-8
-    dx = dt*1.5e8
-    steps = int(maxTime / dt)
+    steps = 1600
     def __str__(self):
-        return "Settings: maxTime = "+str(self.maxTime)+", dt = "+str(self.dt)
+        return "Settings: maxTime = "+str(self.dt*self.steps)+", dt = "+str(self.dt)+", steps = "+str(self.steps)
+    def getDt(self):
+        return self.dt
+    def getDx(self):
+        return self.dt*1.5e8
+    def getSteps(self):
+        return self.steps
+    def getMaxTime(self):
+        return self.steps * self.dt
+    def getMaxDist(self):
+        return self.steps * self.dt * 1.5e8
 
 # unclear how to in python, but should only ever have 1 instance created
 # e.g. singleton design pattern
 env = Env() # parameters loaded at end of module
 
 def loadParameters():
-    global env
-    # refresh defaults before loading changes
-    setMaxTime()
-    setTimeStep()
-    
+    global env    
     path = os.path.dirname(__file__)+"/config.npy"
     if not os.path.exists(path):
         return -1
-    setups = {"maxDist":setMaxDist, "maxTime":setMaxTime, "dx":setSpaceStep,
-              "dt":setTimeStep, "steps":setSteps}
     data = np.load(path,allow_pickle=True).item()
-    # Calling in certain orders changes some values back, hence cases
-    if data["steps"] is None or (data["maxDist"] is None and data["maxTime"] is None):
-        for key, val in data.iteritems():
-            if val is not None:
-                setups[key](val)
-    elif data["maxDist"] is not None:
-        setMaxDist(data["maxDist"])
-        setSpaceStep(data["maxDist"]/data["steps"])
-    else:
-        setMaxTime(data["maxTime"])
-        setSpaceStep(data["maxTime"]/data["steps"])
+
+    # will always overwrite anything previously set
+    setTimeStep(data["dt"])
+    setSteps(data["steps"])
     return 0
 
 def storeParameters(env = env):
     # Rest found from maxDist and dt on loading
-    data = {"maxDist":None,"maxTime":env.maxTime,
-            "dx":None, "dt":env.dt, "steps":None}
+    data = {"dt":env.dt, "steps":env.steps}
     path = os.path.dirname(__file__)+"/config.npy"
     np.save(path,data)
     return 0
@@ -57,42 +48,30 @@ def storeParameters(env = env):
 def setTimeStep(dt = 1.25e-8):
     """Sets the time between sample points in radargrams/wiggle plots.
     This is in terms of the two-way path i.e. difference in recieved time.
-    Default is 1.25e-8s"""
+    Default is 1.25e-8s. Maximum range unchanged."""
+    env.steps = int(env.steps * (env.dt / dt) + 0.5) # near rounding
     env.dt = dt
-    env.dx = dt*1.5e8
-    _setSteps()
     
 def setSpaceStep(dx = 1.875):
     """Sets the distance between sample points in the radargram/wiggle plots.
-    This is in terms of the one-way path. Default is 1.875m"""
-    env.dx = float(dx)
-    env.dt = dx/1.5e8
-    _setSteps()
+    This is in terms of the one-way path. Default is 1.875m. Maximum range unchanged."""
+    setTimeStep(dx/1.5e8)
+   
+def setMaxTime(t = 2e-5):
+    """Sets the maximum duration to show the radargram/wiggle plot over.
+    Default is 2e-5s. Time granularity unchanged."""
+    env.steps = int(t/env.dt + 0.5) # near rounding
     
 def setMaxDist(d = 3000.0):
     """Sets the maximum range to consider a surface creating a response from.
-    Default is 3000m."""
-    env.maxDist = float(d)
-    env.maxTime = d/1.5e8
-    _setSteps()
-    
-def setMaxTime(t = 2e-5):
-    """Sets the maximum duration to show the radargram/wiggle plot over.
-    Default is 2e-5s."""
-    env.maxTime = t
-    env.maxDist = t*1.5e8
-    _setSteps()
+    Default is 3000m. Time granularity unchanged."""
+    setMaxTime(d/1.5e8)
     
 def setSteps(n = 1600):
     """Sets the number of samples in the radargram/wiggle plot. This
     changes the maximum range of the plot. Default is 1600."""
-    env.steps = int(n)
-    env.maxDist = env.dx*n
-    env.maxTime = env.dt*n
-    
-def _setSteps():
-    env.steps = int(env.maxTime / env.dt)
-
+    env.steps = int(n + 0.5) # near rounding
+ 
 loadParameters()
 
 figsize = (12,6.8)

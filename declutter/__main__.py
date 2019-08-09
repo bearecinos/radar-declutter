@@ -57,24 +57,51 @@ def setParams(args):
     """Overwrites any existing parameters stored which will revert to their default values if not fixed by arguments passed."""
     import numpy as np
     import os
+    from modelling import parameters
+
+    # display
     if args.show  and (args.maxdist is not None or args.maxtime is not None or
                                   args.steps is not None or args.dx is not None or args.dt is not None):
         print "Cannot show and set at same time. Do not use --show with other options."
         return -1
     elif args.show:
-        d = np.load(os.path.dirname(__file__)+"/modelling/config.npy", allow_pickle=True).item()
-        for key, val in d.items():
-            if val is not None:
-                print key + " = "+str(val)
+        print parameters.env
         return 0
     if (args.steps is not None and (args.maxdist is not None or args.maxtime is not None) and
         (args.dx is not None or args.dt is not None)):
         if args.maxdist != args.dx * 1.5e8:
             print "Contradiction, cannot set range, granularity and total number of steps."
             return -1
-    
-    d = {"steps":args.steps, "maxDist":args.maxdist, "maxTime":args.maxtime, "dx":args.dx, "dt":args.dt}
-    np.save(os.path.dirname(__file__)+"/modelling/config.npy", d)
+    else: # set
+        # clear old settings
+        parameters.setTimeStep()
+        parameters.setSteps()
+        if args.dx is not None or args.dt is not None: # granularity set directly
+            if args.dx is not None:
+                parameters.setSpaceStep(args.dx)
+            else:
+                parameters.setTimeStep(args.dt)
+            if args.steps is not None:
+                parameters.setSteps(args.steps)
+            if args.maxdist is not None:
+                parameters.setMaxDist(args.maxdist)
+            elif args.maxtime is not None:
+                parameters.setMaxTime(args.maxtime)
+                
+        elif args.steps is None or (args.maxdist is None and args.maxtime is None) : # granularity unchanged
+            if args.steps is not None:
+                parameters.setSteps(args.steps)
+            elif args.maxdist is not None:
+                parameters.setMaxDist(args.maxdist)
+            elif args.maxtime is not None:
+                parameters.setMaxTime(args.maxtime)
+
+        else: # granularity inferred from max and steps
+            if args.maxtime is None:
+                args.maxtime = args.maxdist / 1.5e8
+            parameters.setTimeStep(args.maxtime/args.steps)
+            parameters.setSteps(args.steps)
+        parameters.storeParameters()    
     return 0
 
 # Defines a parser for reading command line arguments

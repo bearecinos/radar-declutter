@@ -97,7 +97,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
     reflectionModels = radar.models
     titles = radar.titles
     
-    returnData = np.full((len(reflectionModels),n,env.steps),0,float) # 3D - many subplots
+    returnData = np.full((len(reflectionModels),n,env.getSteps()),0,float) # 3D - many subplots
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=parameters.figsize)
 
@@ -123,14 +123,14 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
     n = returnData.shape[1]
     
     if adjusted: # align first response of each point at top of plot
-        returnData = align.minAlign(returnData, env.dx)
+        returnData = align.minAlign(returnData, env.getDx())
 
     # allows pyplot to show subplots in square grid
     cells = int(np.ceil(np.sqrt(len(reflectionModels))))*110
-    ys = np.linspace(0, env.maxTime, env.steps)
+    ys = np.linspace(0, env.getMaxTime(), env.getSteps())
     for j in range(len(reflectionModels)):
         plt.subplot(cells+j+1) # subplot index
-        plt.ylim(env.maxTime,0) # t=0 at top of plot
+        plt.ylim(env.getMaxTime(),0) # t=0 at top of plot
         draw = np.swapaxes(returnData[j],0,1)
         # colors adjusted so that mean value is 50% grey
         plt.contourf(np.arange(n), ys, draw, 100,norm=radar.MidNorm(np.mean(draw)), cmap="Greys")
@@ -151,7 +151,7 @@ def _worker(args):
     _,_,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
                                                                   isOffset,angle)
     
-    ars = np.full((len(reflectionModels), env.steps),0,float)
+    ars = np.full((len(reflectionModels), env.getSteps()),0,float)
     for j in range(len(reflectionModels)):
         ars[j] = radar.processSlice(dist,incidence,theta,phi,reflectionModels[j])
 

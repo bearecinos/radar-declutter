@@ -10,7 +10,7 @@ import numpy as np
 # No way to remove data from array, just removes name, hence overwrite whole file
 def pathCrop(pathName, crop = [0,0]):
     parameters.loadParameters()
-    d = parameters.env.maxDist
+    d = parameters.env.getMaxDist()
     xs,ys,_ = path.loadData(pathName,crop)
     with h5py.File("maps.hdf5","r") as f:
         xmin,ymin,cellsize = f["meta"][()]

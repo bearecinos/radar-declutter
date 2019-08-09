@@ -32,7 +32,7 @@ class Ricker(Wave): # peak frequency equal to _freq
             -np.pi*np.pi*self.freq*self.freq*t*t)
 
 class Constant(Wave): # equivalent to all frequencies, equal amplitude
-    dt = parameters.env.dt
+    dt = parameters.env.getDt()
     delt = 0.0
     offset = 0.0
     def amplitude(self,t):
@@ -42,8 +42,8 @@ class IDLWave(Wave):
     # timestep was 240us (2.4e-4 seconds echo length) / 2048 granularity
     # = 1.172e-7 = 117ns - much longer than our sampling rate
     # scaling = 1.172e-7
-    dt = parameters.env.dt
-    offset = parameters.env.maxTime / 2.0
+    dt = parameters.env.getDt()
+    offset = parameters.env.getMaxTime() / 2.0
     delt = offset
     def __init__(self,c=50.0):
         self.c = float(c)

@@ -25,7 +25,7 @@ def Setup():
 `   Raises IOError if maps.hdf5 cannot be loaded."""
     global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize, _cropSize, _RANGE
 
-    _RANGE = parameters.env.maxDist
+    _RANGE = parameters.env.getMaxDist()
     
     with h5py.File('maps.hdf5',"r") as f:
         _fullHeightmap = f["heightmap"][()]

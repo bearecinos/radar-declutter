@@ -77,8 +77,8 @@ def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.r
     Returns
     convol - float array : A time series of the modelled response.
     """
-    m = (distance < env.maxDist)
-    t = (_time(distance[m])/env.dt).astype(int) # indices into radargram timesteps
+    m = (distance < env.getMaxDist())
+    t = (_time(distance[m])/env.getDt()).astype(int) # indices into radargram timesteps
     
     intensity = intensityModel(angle[m]) / np.power(distance[m],rFactor)
     
@@ -87,14 +87,14 @@ def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.r
         intensity *= directional(theta[m],phi[m])
 
     # total intensity recieved at each timestep
-    sample = np.array([np.sum(intensity[t==i]) for i in range(env.steps)])
+    sample = np.array([np.sum(intensity[t==i]) for i in range(env.getSteps())])
     #sample = np.array([np.sum(t==i) for i in range(_steps)])
     #sample = np.array([np.sum(intensity[t==i])/(1+np.sum(t==i)) for i in range(_steps)])
     
     # convolution
-    w = wave.amplitude(np.linspace(0.0,env.maxTime,env.steps))
-    idx = int(wave.offset/env.dt)
-    convol = np.convolve(sample,w)[idx:idx+env.steps]
+    w = wave.amplitude(np.linspace(0.0,env.getMaxTime(),env.getSteps()))
+    idx = int(wave.offset/env.getDt())
+    convol = np.convolve(sample,w)[idx:idx+env.getSteps()]
     
     # Filtering
     #convol = bandpass_filter(convol,0.05,0.4,1.0)
@@ -144,7 +144,7 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
     
-    returnData = np.full((len(models),len(files),env.steps),0,float) # 3D - many subplots
+    returnData = np.full((len(models),len(files),env.getSteps()),0,float) # 3D - many subplots
     
     p = mp.Pool(mp.cpu_count())
     # data needed to run across several processors
@@ -165,18 +165,17 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
 
     if adjusted: # align first responses with top of radargram
         for i in range(len(models)):
-            returnData[i] =  align.minAlign(returnData[i], env.dx, 200.0)
+            returnData[i] =  align.minAlign(returnData[i], env.getDx(), 200.0)
 
     cells = int(np.ceil(np.sqrt(len(models))))*110
-    ys = np.linspace(0, env.maxTime, env.steps)
-
+    ys = np.linspace(0, env.getMaxTime(), env.getSteps())
     # clipping
     if clip:
         returnData = np.clip(returnData,np.percentile(returnData,clip),np.percentile(returnData,100-clip))
     
     for j in range(len(models)):
         plt.subplot(cells+j+1)
-        plt.ylim(env.maxTime, 0)
+        plt.ylim(env.getMaxTime(), 0)
         draw = np.swapaxes(returnData[j],0,1)
   
         plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
@@ -198,7 +197,7 @@ def worker(args):
     global env
     i,name,wave,models,directional,env,rFactor = args
     distance,angle,theta,phi = loadArrays(name)
-    ars = np.full((len(models),env.steps),0,float)
+    ars = np.full((len(models),env.getSteps()),0,float)
     for j in range(len(models)):
         ars[j] = processSlice(distance,angle,theta,phi,models[j],wave,directional=directional,
                               rFactor = rFactor)
@@ -227,7 +226,7 @@ def wiggle(filename,intensityModel=modelling.backscatter.raySpecular,
     # Clipping
     #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
     if display:
-        xs = np.linspace(0,env.maxTime,env.steps)
+        xs = np.linspace(0,env.getMaxTime(),env.getSteps())
         plt.plot(xs,ys,color="black")
         plt.fill_between(xs,ys,0,where=(ys>0),color="black")
         plt.show()
@@ -269,7 +268,7 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
 
     cells = int(np.ceil(np.sqrt(len(files))))*110
     
-    draw = np.full((len(files),env.steps),0,float)
+    draw = np.full((len(files),env.getSteps()),0,float)
     for i in range(len(files)):
         filename = files[i]
         try:
@@ -280,8 +279,8 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
         draw[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,rFactor,directional)  
 
     if adjusted:
-        draw =  align.minAlign(draw, env.dx, 200.0)
-    ys = np.linspace(0, env.maxTime, env.steps)
+        draw =  align.minAlign(draw, env.getDx(), 200.0)
+    ys = np.linspace(0, env.getMaxTime(), env.getSteps())
     
     # clipping
     #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
@@ -297,7 +296,7 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
             plt.plot(compareTo[i]+m*i,ys,"r-",zorder=2,label="reference",alpha=0.3)
             if i == 0:
                 plt.legend()
-    plt.ylim(env.maxTime,0)
+    plt.ylim(env.getMaxTime(),0)
     plt.xlim(-m,m*len(files))
     plt.gca().axes.get_xaxis().set_visible(False)
 
@@ -312,11 +311,11 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
     
 def showWave(wave=modelling.waves.GaussianDot()):
     """Plot the given wave over the time the radargram records for."""
-    x = np.linspace(-env.maxTime/10.0,env.maxTime,env.steps*2)
+    x = np.linspace(-env.getMaxTime()/10.0,env.getMaxTime(),env.getSteps()*2)
     y = wave.amplitude(x)
     plt.plot(x,y)
     plt.plot([wave.offset,wave.offset],[np.amin(y),np.amax(y)])
-    plt.plot([wave.offset+env.dt,wave.offset+env.dt],[np.amin(y),np.amax(y)])
+    plt.plot([wave.offset+env.getDt(),wave.offset+env.getDt()],[np.amin(y),np.amax(y)])
     plt.show()
     return x,y
 
