@@ -214,7 +214,7 @@ def showPath(filename,crop=[0,0],style=None):
     plt.show()
     return 0
 
-def showAboveGround(filename,crop=[0,0],style="gpx"):
+def showAboveGround(filename,crop=[0,0],style=None):
     """Uses 'maps.hdf5' to show the radar elevation relative to the ground directly beneath the radar along the path.
 
     Parameters
@@ -250,7 +250,7 @@ def showAboveGround(filename,crop=[0,0],style="gpx"):
     return 0
     
 
-def showOnSurface(filename,crop=[0,0],extend=10,style="gpx"):
+def showOnSurface(filename,crop=[0,0],extend=10,style=None):
     """Plots the radar path in 3D, using 'maps.hdf5' to plot the surrounding terrain for reference.
 
     Parameters

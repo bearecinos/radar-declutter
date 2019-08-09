@@ -6,6 +6,47 @@ from declutter import models
 from declutter import modelling
 import os
 
+area = 10
+steps = 5
+def smoothness(grid, visible, visCorner, left, low, cellSize):
+    results = np.full((visible.shape[0]/steps,visible.shape[1]/steps),0.0,float)
+    height = grid.shape[0]
+    l = int((visCorner[0]-left)/cellSize)
+    r = int(l+visible.shape[1])
+    lower = int(height - (visCorner[1]-low)/cellSize)
+    upper = int(lower - visible.shape[0])
+    grid = grid[upper:lower,l:r]
+    for x in range(0,visible.shape[1]-area,steps):
+        for y in range(0,visible.shape[0]-area,steps):
+                ybox,xbox = np.indices((area,area))
+                ybox = ybox.reshape(-1)
+                xbox = xbox.reshape(-1)
+                gbox = grid[y:y+area,x:x+area].reshape(-1,)
+                if np.sum(np.isnan(gbox))>0:
+                        results[y/steps,x/steps] = np.nan
+                        continue
+                A = np.vstack([xbox,ybox,np.ones(len(xbox))]).T
+                residuals = np.linalg.lstsq(A,gbox)[1]
+                results[y/steps,x/steps] = 1.0 - residuals/np.sum((gbox-np.mean(gbox))**2)
+    return results 
+
+def spread(result,visible,cutoff=0.95):
+    out = np.full_like(visible,0,int)
+    y,x = np.indices(visible.shape)
+    out[y,x] = result[y/5,x/5] > cutoff
+    return out
+
+# returns direction of glacier in terms of theta = arctan(dy/dx)
+# grid should already be cropped
+# can ignore points where line would be within 30 degrees of approximated direction?
+# error of at least 20 degrees
+# doesn't help remove points on edges of glacier
+def glacierDir(grid,groundHeight):
+    m = (grid < groundHeight + 30) & (grid > groundHeight-30)
+    ys,xs = np.indices(m.shape)[:,m]
+    grad = np.polyfit(xs,ys,1)[0] # 1st order coefficient
+    return np.arctan(-grad) # account for world y coordinates being in other direction
+
 ###########################
 # Takes point data (requires vis generated) and tracks bearing of
 # wall. Currently this means nearest surface within 50m height of radar
