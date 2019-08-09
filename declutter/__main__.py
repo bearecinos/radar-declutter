@@ -12,12 +12,16 @@ def load(args):
     import makeArrays
     return makeArrays.makeAll(args.filename,args.latitude,args.longitude,args.cellSize,args.out)
 
+def crop(args):
+    import changeSize
+    return changeSize.pathCrop(args.filename, crop = [args.start, args.end])    
+
 def model(args):
     """Produces a radargram from a gps path. The intermediate data generated can
     be saved to make displaying the result faster if run several times, say to
     test variations on the model.
     Returns 0 if successful, else -1."""
-    import fullModel, path, models
+    import fullModel, path, radar
     from modelling import parameters
     
     if (args.out is not None or args.view) and not args.files: # arguments don't make sense
@@ -39,15 +43,15 @@ def model(args):
                 args.save = args.filename[:-4]+".png"
             else:
                 args.save = args.filename+".png"
-        return models.compare(args.out,save=args.save)
+        return radar.compare(args.out,save=args.save)
 
 def display(args):
     """Produces a radargram from existing intermediate data.
     Returns 0 if successful, else -1."""
-    import models
+    import radar
     if args.no and args.save is None:
         args.save = args.directory + ".png"
-    return models.compare(args.directory,args.adjusted,save=args.save)
+    return radar.compare(args.directory,args.adjusted,save=args.save)
 
 def setParams(args):
     """Overwrites any existing parameters stored which will revert to their default values if not fixed by arguments passed."""
@@ -128,22 +132,28 @@ if __name__ == "__main__":
     exclusive.add_argument("-s","--save", help = "The name to save the radargram as.")
     displayParse.set_defaults(func=display)
 
+    # setting parameters for radargram size and granularity
     paramParse = subparsers.add_parser('config',description="""
-                        Sets/displays default options for the radargrams produced by command line calls to 'models'.""",
+                        Sets/displays default options for the radargrams produced by command line calls to 'model'.""",
                         help='Sets the range/granularity of radargrams.')
-    
-    
     paramParse.add_argument('--show',action="store_true",help="Display any existing parameters set.")
     paramParse.add_argument('-n','--steps',type=int,help="Number of time samples in the radargram.")
-
     exclusive = paramParse.add_mutually_exclusive_group()
     exclusive.add_argument('--maxdist',type=float, help="Furthest surfaces to consider in the radargram.")
     exclusive.add_argument('--maxtime',type=float, help="Recording duration of the radargram.")
-
     exclusive = paramParse.add_mutually_exclusive_group()    
     exclusive.add_argument("--dx",type=float, help = "Spatial resolution of the radargram.")
     exclusive.add_argument("--dt",type=float, help = "Time resolution of the radargram.")
     paramParse.set_defaults(func=setParams)
+
+    # processing a path file to create a radargram
+    cropParse = subparsers.add_parser('crop', description="""
+                        Crop the 'maps.hdf5' file to just the region needed by a specific path file, considering the range
+                        specified in the config file.""",
+                        help='Crop the maps.hdf5 file.')
+    cropParse.add_argument("--start",type = int,default=0, help = "How many points to ignore from the start of the path.")
+    cropParse.add_argument("--end",type = int,default=0, help = "How many points to ignore from the end of the path.")
+    cropParse.set_defaults(func=crop)
 
     # parse sys.argv (command line input) and call appropriate method
     a = parser.parse_args()

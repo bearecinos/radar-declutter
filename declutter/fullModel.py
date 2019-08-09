@@ -6,7 +6,7 @@ point would be deleted immediately after.'''
 import path
 import numpy as np
 import os
-import models
+import radar
 from progress import progress
 import multiprocessing as mp
 import pointData
@@ -94,8 +94,8 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
 
     # env holds timestep/range to sample over for radargram and granularity of samples
     env = parameters.env
-    reflectionModels = models.models
-    titles = models.titles
+    reflectionModels = radar.models
+    titles = radar.titles
     
     returnData = np.full((len(reflectionModels),n,env.steps),0,float) # 3D - many subplots
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
@@ -133,7 +133,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
         plt.ylim(env.maxTime,0) # t=0 at top of plot
         draw = np.swapaxes(returnData[j],0,1)
         # colors adjusted so that mean value is 50% grey
-        plt.contourf(np.arange(n), ys, draw, 100,norm=models.MidNorm(np.mean(draw)), cmap="Greys")
+        plt.contourf(np.arange(n), ys, draw, 100,norm=radar.MidNorm(np.mean(draw)), cmap="Greys")
         plt.title(titles[j])
         plt.colorbar()
     if name is not None:
@@ -146,12 +146,13 @@ def _worker(args):
     # or in pointData for pointX.hdf5
     pointx,pointy,pointz,i,isOffset,angle,reflectionModels, env = args
     
-    models.env = env
+    radar.env = env
     
     _,_,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
                                                                   isOffset,angle)
+    
     ars = np.full((len(reflectionModels), env.steps),0,float)
     for j in range(len(reflectionModels)):
-        ars[j] = models.processSlice(dist,incidence,theta,phi,reflectionModels[j])
+        ars[j] = radar.processSlice(dist,incidence,theta,phi,reflectionModels[j])
 
     return i, ars

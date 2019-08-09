@@ -1,5 +1,37 @@
 """Provides a method to resample the arrays stored in maps.hdf5."""
 import h5py
+from modelling import parameters
+import path
+import numpy as np
+
+# take path, generate bounds as min/max x and y then push out by param.env.maxDist
+# can only crop after projecting
+# do in arcpy (changes values?) or numpy
+# No way to remove data from array, just removes name, hence overwrite whole file
+def pathCrop(pathName, crop = [0,0]):
+    parameters.loadParameters()
+    d = parameters.env.maxDist
+    xs,ys,_ = path.loadData(pathName,crop)
+    with h5py.File("maps.hdf5","r") as f:
+        xmin,ymin,cellsize = f["meta"][()]
+        hmap = f["heightmap"][()]
+        height,width = hmap.shape
+
+        xBounds = [max(0,int((np.amin(xs)-d-xmin)/cellsize)),
+                   min(width,int((np.amax(xs)+d-xmin)/cellsize)+1)]
+        # updated to expect lower left in [0,0]
+        yBounds = [max(0,int((np.amin(ys)-d-ymin)/cellsize)),
+                   min(height,int((np.amax(ys)+d-ymin)/cellsize)+1)]
+        slope = f["slope"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
+        aspect = f["aspect"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
+        
+    with h5py.File("maps.hdf5","w") as f:
+        f.create_dataset("heightmap",compression="gzip",data = hmap[yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]])
+        f.create_dataset("slope",compression="gzip",data = slope)
+        f.create_dataset("aspect",compression="gzip",data = aspect)
+        f["meta"] = np.array([xmin+xBounds[0]*cellsize, ymin+(height-yBounds[1])*cellsize,cellsize])
+    return 0
+
 
 def resize(cellsize): 
     """Changes the size of the cells in an existing numpy array. The lower left
@@ -21,9 +53,10 @@ def resize(cellsize):
         factor = int(cellsize/originalSize)
         
         # keeps cell corresponding to (min-x, min-y)
-        heightmap = f["heightmap"][::-factor,::factor][::-1]
-        aspect = f["aspect"][::-factor,::factor][::-1]
-        slope = f["slope"][::-factor,::factor][::-1]
+        # no longer reverse file as should be at [0,0]
+        heightmap = f["heightmap"][::factor,::factor]
+        aspect = f["aspect"][::factor,::factor]
+        slope = f["slope"][::factor,::factor]
 
         # update metaData with new cell size
         line[-1] = cellsize

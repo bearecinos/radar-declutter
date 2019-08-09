@@ -26,13 +26,13 @@ def Setup():
     global _fullHeightmap, _fullSlope, _fullAspect , _SetupRun, low, left, _CellSize, _cropSize, _RANGE
 
     _RANGE = parameters.env.maxDist
-
+    
     with h5py.File('maps.hdf5',"r") as f:
         _fullHeightmap = f["heightmap"][()]
         _fullSlope = f["slope"][()]
         _fullAspect = f["aspect"][()]
         left,low,_CellSize = f["meta"][()]
-   
+    
     _cropSize = int(2.0*_RANGE/_CellSize) + 10 # padding to avoid rounding cropping out cells
     _SetupRun = True
     return 0
@@ -41,8 +41,9 @@ def Setup():
 def _getDirections(vis,pointx,pointy,cropLeft,cropLow):
     """Calculates the bearing from the radar to each visible point on the raster."""
     directions = np.full_like(vis,_NODATA,float)
-    y,x = np.indices(vis.shape) 
-    directions[vis==1] = 180.0/math.pi * np.arctan2(pointx-cropLeft-_CellSize*x[vis==1], pointy-cropLow-(_cropSize-y[vis==1]-1)*_CellSize)+180
+    y,x = np.indices(vis.shape)
+    # y no longer flipped as [0,0] is lower left corner
+    directions[vis==1] = 180.0/math.pi * np.arctan2(pointx-cropLeft-_CellSize*x[vis==1], pointy-cropLow-y[vis==1]*_CellSize)+180
     return directions
 
 # generates map of incidence angle for all visible surfaces
@@ -67,7 +68,8 @@ def _makeDistance(vis,distances,heightmap,elevation):
 def _makeDist2D(vis,pointx,pointy,cropLeft,cropLow):
     """Calculates the xy distance to each visible point on the raster, ignoring differences in height."""
     distances = np.full_like(vis,_NODATA,float)
-
+    # Now correct but believe there was error before with not switching y indices round.
+    # Only minor error as point should always have been near centre of array so mostly symmetric
     y,x = np.indices(vis.shape) 
     distances[vis==1] = ((pointx - cropLeft - _CellSize*x[vis==1])**2 + (pointy - cropLow - _CellSize*y[vis==1])**2)**0.5
     
@@ -126,23 +128,28 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     # rounds down the corner
     pointCoords = [int((pointx-left)/_CellSize),int((pointy-low)/_CellSize)]
     
-    height = _fullHeightmap.shape[0]
-    # stop at edges, end up with point no longer in center - affects coordinates of point in grid.
-    # in y direction lower index is greater y position
-    upper, lower = max(0,height-pointCoords[1]-_cropSize/2), min(height,height-pointCoords[1]+_cropSize/2)
-    l, r = max(0,pointCoords[0]-_cropSize/2), min(height,pointCoords[0]+_cropSize/2)
+    height, width = _fullHeightmap.shape
+    # changed as map reversed so now [0,0] is lower left corner
+##    # stop at edges, end up with point no longer in center - affects coordinates of point in grid.
+##    # in y direction lower index is greater y position
+##    upper, lower = max(0,height-pointCoords[1]-_cropSize/2), min(height,height-pointCoords[1]+_cropSize/2)
+    lower, upper = max(0,pointCoords[1]-_cropSize/2), min(height,pointCoords[1]+_cropSize/2)
+    l, r = max(0,pointCoords[0]-_cropSize/2), min(width,pointCoords[0]+_cropSize/2)
 
     cropLeft = left + l*_CellSize
-    cropLow = low + (height-1-lower)*_CellSize
+    # changed as map reversed so now [0,0] is lower left corner
+    cropLow = low + lower*_CellSize
     
-    heightmap = _fullHeightmap[upper:lower,l:r]
-    slope = _fullSlope[upper:lower,l:r]
-    aspect = _fullAspect[upper:lower,l:r]
+    # changed as [0,0] is lower left corner now
+    heightmap = _fullHeightmap[lower:upper,l:r]
+    slope = _fullSlope[lower:upper,l:r]
+    aspect = _fullAspect[lower:upper,l:r]
     cropHeight,cropWidth = heightmap.shape
     
     pointCoords = np.array([(pointx-cropLeft)/_CellSize,(pointy-cropLow)/_CellSize])
-    groundHeight = viewshed.quadHeight(heightmap,np.array([pointCoords[0]]),np.array([cropHeight-1.0-pointCoords[1]]))[0]
-
+    # changed as [0,0] is lower left corner now
+    groundHeight = viewshed.quadHeight(heightmap,np.array([pointCoords[0]]),np.array([pointCoords[1]]))[0]
+    
     theta,phi = None, None
     
     if np.isnan(groundHeight): # Assumes use of NaN, have to use different checks to regular values
@@ -158,7 +165,7 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
         elevation = above_ground
     
     ys, xs = np.indices(heightmap.shape,float)
-    ys = cropHeight - 1 - ys
+    ##ys = cropHeight - 1 - ys # [0,0] is lower left corner now
     xs = cropLeft + xs*_CellSize
     ys = cropLow + ys*_CellSize
     mask = (((xs-pointx)**2 + (ys-pointy)**2) <= _RANGE**2) & ~np.isnan(slope) ## leave noData points

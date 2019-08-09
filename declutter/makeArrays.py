@@ -9,9 +9,6 @@ import h5py
 from errors import RasterError
 
 
-import path
-from modelling import parameters
-
 __all__ = ["justAspect","justSlope","justHeightmap","makeAll","rastersToNumpy"]
 
 _NODATA = np.nan
@@ -31,33 +28,6 @@ def loadRaster(source):
         if "ERROR 000732" in e.message:
             raise RasterError("input raster not recognised: "+source)
 
-
-# take path, generate bounds as min/max x and y then push out by param.env.maxDist
-# can only crop after projecting
-# do in arcpy (changes values?) or numpy
-# No way to remove data from array, just removes name, hence overwrite whole file
-
-def pathCrop(pathName, crop = [0,0]):
-    parameters.loadParameters()
-    d = parameters.env.maxDist
-    xs,ys,_ = path.loadData(pathName,crop)
-    with h5py.File("maps.hdf5","r") as f:
-        xmin,ymin,cellsize = f["meta"][()]
-        hmap = f["heightmap"][()]
-        height,width = hmap.shape
-        xBounds = [max(0,int((np.amin(xs)-d-xmin)/cellsize)),
-                   min(width,int((np.amax(xs)+d-xmin)/cellsize)+1)]
-        yBounds = [height-1-min(height-1,int((np.amax(ys)+d-ymin)/cellsize)),
-                   min(height, int(height-(np.amin(ys)-d-ymin)/cellsize))]
-        slope = f["slope"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
-        aspect = f["aspect"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
-        
-    with h5py.File("maps.hdf5","w") as f:
-        f.create_dataset("heightmap",compression="gzip",data = hmap[yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]])
-        f.create_dataset("slope",compression="gzip",data = slope)
-        f.create_dataset("aspect",compression="gzip",data = aspect)
-        f["meta"] = np.array([xmin+xBounds[0]*cellsize, ymin+(height-yBounds[1])*cellsize,cellsize])
-    return 0
 
 def resample(raster,cellSize,outDir=None):
     """Returns the original raster or a resampled version if required. Size to sample
@@ -156,8 +126,9 @@ def justAspect(source,sampleLat,sampleLon,cellSize=None,outDir=None):
         return -1    
     arcpy.env.snapRater = raster
     corner = raster.extent.lowerLeft
-    cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
-    aspect = arcpy.RasterToNumPyArray(_makeAspect(raster),corner,nodata_to_value=_NODATA)
+    cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0))
+    # reverse order to put lower left corner at [0,0]
+    aspect = arcpy.RasterToNumPyArray(_makeAspect(raster),corner,nodata_to_value=_NODATA)[::-1]
     
     try:
         with h5py.File("maps.hdf5","a") as f:
@@ -195,8 +166,9 @@ def justSlope(source,sampleLat,sampleLon,cellSize=None,outDir=None):
     
     arcpy.env.snapRater = raster
     corner = raster.extent.lowerLeft
-    cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
-    slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)
+    cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0))
+    # reverse order to put lower left corner at [0,0]
+    slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)[::-1]
     try:
         with h5py.File("maps.hdf5","a") as f:
             f.create_dataset("slope",compression="gzip",data = slope)
@@ -231,8 +203,9 @@ def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
         return -1
     
     corner = raster.extent.lowerLeft
-    cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0)) 
-    heightmap = arcpy.RasterToNumPyArray(raster,corner,nodata_to_value=_NODATA)
+    cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0))
+    # reverse order to put lower left corner at [0,0]
+    heightmap = arcpy.RasterToNumPyArray(raster,corner,nodata_to_value=_NODATA)[::-1]
 
     try:
         with h5py.File("maps.hdf5","a") as f:
@@ -273,11 +246,11 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
         arcpy.env.snapRater = raster
         corner = raster.extent.lowerLeft
         cellSize = float(arcpy.GetRasterProperties_management(raster,"CELLSIZEX").getOutput(0))
-        
-        aspect = arcpy.RasterToNumPyArray(_makeAspect(raster),corner,nodata_to_value=_NODATA)
-        slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)
-        
-        heightmap = arcpy.RasterToNumPyArray(raster,corner,nodata_to_value=_NODATA)
+
+        # reverse order to put lower left corner at [0,0]
+        aspect = arcpy.RasterToNumPyArray(_makeAspect(raster),corner,nodata_to_value=_NODATA)[::-1]
+        slope = arcpy.RasterToNumPyArray(_makeSlope(raster),corner,nodata_to_value=_NODATA)[::-1]
+        heightmap = arcpy.RasterToNumPyArray(raster,corner,nodata_to_value=_NODATA)[::-1]
         
         with h5py.File("maps.hdf5","w") as f:
             f.create_dataset("heightmap",compression="gzip",data = heightmap)
@@ -308,20 +281,21 @@ def rastersToHdf(heightmap,aspect=None,slope=None):
         corner = heightmap.extent.lowerLeft
         cellSize = float(arcpy.GetRasterProperties_management(heightmap,"CELLSIZEX").getOutput(0)) 
 
+        # reverse order to put lower left corner at [0,0]
         if aspect is None:
-            aspect = arcpy.RasterToNumPyArray(_makeAspect(heightmap),corner,nodata_to_value=_NODATA)
+            aspect = arcpy.RasterToNumPyArray(_makeAspect(heightmap),corner,nodata_to_value=_NODATA)[::-1]
         else:
-            aspect = arcpy.RasterToNumpyArray(loadRaster(aspect),corner,nodata_to_value=_NODATA)
+            aspect = arcpy.RasterToNumpyArray(loadRaster(aspect),corner,nodata_to_value=_NODATA)[::-1]
         if slope is None:
-            slope = arcpy.RasterToNumPyArray(_makeSlope(heightmap),corner,nodata_to_value=_NODATA)
+            slope = arcpy.RasterToNumPyArray(_makeSlope(heightmap),corner,nodata_to_value=_NODATA)[::-1]
         else:
-            slope = arcpy.RasterToNumpyArray(loadRaster(slope),corner,nodata_to_value=_NODATA)
+            slope = arcpy.RasterToNumpyArray(loadRaster(slope),corner,nodata_to_value=_NODATA)[::-1]
     except RasterError as e:
         print "Error loading raster : " +e.message
         return -1
-    
-    heightmap = arcpy.RasterToNumPyArray(heightmap,corner,nodata_to_value=_NODATA)
-    heightmap[np.isnan(aspect)] = _NODATA
+
+    # reverse order to put lower left corner at [0,0]
+    heightmap = arcpy.RasterToNumPyArray(heightmap,corner,nodata_to_value=_NODATA)[::-1]
 
     try:
         with h5py.File("maps.hdf5","w") as f:

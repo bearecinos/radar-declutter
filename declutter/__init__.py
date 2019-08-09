@@ -11,7 +11,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # modules which should be immediately visible
-__all__ = ["changeSize","models","path","pointData","makeArrays"]  
+__all__ = ["changeSize","radar","path","pointData","makeArrays"]  
 
 # runs whenever any part of package is run.
 try:

@@ -4,6 +4,8 @@ import math
 
 _NODATA = np.nan
 
+
+# now that grid flipped so [0,0] is lower left, indices should be clearer/more consistent
 def quadHeight(grid,x,y):
     """Calculates the interpolated height of the surface below the given point.
 
@@ -66,7 +68,7 @@ def _visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
     return vis
 
 cost = 0
-# y passed in world coordinates so grid coordinates are height-1-y
+# grid flipped to have same y coordinates, no longer height - 1 - y
 # assumes point actually inside grid (checked by call to quadheight to get groundHeight first in stateless.py)
 def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,stepSize=None):
     """Calculates which points on a grid are visible from a given viewpoint.
@@ -93,7 +95,7 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,s
     global cost
     gheight, gwidth = grid.shape
     
-    pointy = gheight - pointy - 1
+   # pointy = gheight - pointy - 1# grid flipped so [0,0] is lower left now
     
     view = np.full_like(grid,False,bool)
 

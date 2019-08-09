@@ -241,7 +241,8 @@ def showAboveGround(filename,crop=[0,0],style=None):
     height,width = grid.shape
 
     xs = (xs-left)/cellSize
-    ys = height-(ys-low)/cellSize
+    #ys = height-(ys-low)/cellSize ## reversed so corner at [0,0] now
+    ys = (ys-low)/cellSize
     groundHeights = viewshed.quadHeight(grid,xs,ys)
     plt.plot(zs,label="radar")
     plt.plot(groundHeights,label="ground")
@@ -276,13 +277,23 @@ def showOnSurface(filename,crop=[0,0],extend=10,style=None):
     
     xcoords = (np.amin(xs)-left)/cellSize, (np.amax(xs)-left)/cellSize
     xcoords = max(0,int(xcoords[0]-extend)), min(width,int(xcoords[1]+extend))
-    ycoords = height - 1 - (np.amax(ys)-low)/cellSize, height - 1 - (np.amin(ys)-low)/cellSize
+    # reversed so corner at [0,0] now
+    #ycoords = height - 1 - (np.amax(ys)-low)/cellSize, height - 1 - (np.amin(ys)-low)/cellSize
+    #ycoords = max(0,int(ycoords[0]-extend)), min(height,int(ycoords[1]+extend))
+    ycoords = (np.amin(ys)-low)/cellSize, (np.amax(ys)-low)/cellSize
     ycoords = max(0,int(ycoords[0]-extend)), min(height,int(ycoords[1]+extend))
-    Y,X = np.indices(heightmap.shape)
-    Y = Y[::-1]
+    
+##    Y,X = np.indices(heightmap.shape)
+##    #Y = Y[::-1] # reversed so corner at [0,0] now
     heightmap = heightmap[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
-    Y = Y[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
-    X = X[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
+
+    # changed so that indices only made after cropping heightmap
+    Y,X = np.indices(heightmap.shape)
+    Y += ycoords[0]
+    X += xcoords[0]
+    
+##    Y = Y[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
+##    X = X[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
 
     # scale resolution to display in reasonable time
     size = heightmap.size
@@ -325,7 +336,8 @@ def checkValid(filename,crop = [0,0],style="gpx"):
         left,low,cellSize = f["meta"][()]
     height,width = heightmap.shape
     Y,X = np.indices(heightmap.shape)
-    Y = Y[::-1]
+    # reversed so corner at [0,0] now
+    #Y = Y[::-1]
     X = left + X*cellSize
     Y = low + Y*cellSize
     right = left + width * cellSize
