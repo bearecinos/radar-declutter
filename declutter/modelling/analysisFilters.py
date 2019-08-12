@@ -2,10 +2,10 @@
 walls of a glacier. Performance can vary significantly with data so worth
 testing. e.g. glacier appears very rough with some data, smooth with other.
 
-All return 2D arrays so must & with visible array at end.'''
+Only interested in visible points so, depending on type of filter, both 1D or
+2D arrays can be returned, and these are dealt with by compose method.'''
 import numpy as np
 from scipy import signal
-
 
 def smooth(grid, visible, threshold = 0.95, sampleSteps = 5, sampleArea = 10):
     '''Where glacier is rougher than walls in data, this filters out
@@ -87,22 +87,29 @@ def glacierDirection(grid, corner, x, y, cellsize, cutOut = 30):
     # remove returning the angle
     return abs(np.arctan(grad)-glacierGrad) > cutOut * np.pi/180 #, glacierGrad
 
-def horizon(grid, corner, x, y, z, cellsize, cutOut = 5):
+
+def horizon(grid, visible, distance, z, cutOut = 5):
     '''Masks out point which, from the radar, are at an angle greater than cutOut from
     the horizon.'''
-    coords = [(x-corner[0])/cellsize,(y-corner[1])/cellsize]
-    ys, xs = np.indices(grid,shape)
-    dists = np.hypot(xs-coords[0], ys-coords[1])
-    hs = grid - z
-    return abs(np.arctan(hs, dists)) < 5*np.pi/180
+    return abs(z-grid[visible])/distance < np.sin(cutOut*np.pi/180)
 
-def compose(filters):
+def minDist( distance, minimum = 400):
+    return distance >= minimum
+
+def compose(filters, visible):
     """Return a mask which is true only for the points satisfying every mask given.
-    Default is None if no masks given as can't determine dimensions."""
+    Must pass visible too.
+
+    Can take both 2D and 1D arrays."""
     if len(filters) == 0:
-        return None
-    result = np.full(filters[0].shape, True, bool)
+        return visible
+    result = np.full(visible.shape, True, bool)
     for f in filters:
-        result &= f
+        if len(f.shape) == 2:
+            result &= f
+    result = result[visible]
+    for f in filters:
+        if len(f.shape) == 1:
+            result &= f
     return result
     
