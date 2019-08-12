@@ -63,7 +63,7 @@ def _makeIncidence(vis,elevation,heightmap,trueDist,distances,slope,aspect,direc
 def _makeDistance(vis,distances,heightmap,elevation):
     """Generates the 3D distance from the radar to each point of the raster."""
     trueDist = np.full_like(vis,_NODATA,float)
-    trueDist[vis==1] = (distances[vis==1]**2+(heightmap[vis==1]-elevation)**2)**0.5
+    trueDist[vis==1] = np.hypot(distances[vis==1],heightmap[vis==1]-elevation) #(distances[vis==1]**2+(heightmap[vis==1]-elevation)**2)**0.5
     return trueDist
 
 def _makeDist2D(vis,pointx,pointy,cropLeft,cropLow):

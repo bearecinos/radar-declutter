@@ -108,7 +108,7 @@ def flyBy(dirname, above=False, stepsize=3):
         
         dx = int((visCorner[0]-left)/cellSize)
         dy = int((visCorner[1] - low)/cellSize)
-        
+
         
         # way of detecting wall (may be very data dependent)
         # closes point which is : visible, angle less than 5 degrees to horizon from radar,
@@ -118,8 +118,9 @@ def flyBy(dirname, above=False, stepsize=3):
         else:
             offset = 0
         idx = np.argmin(distance + (abs((g[visible]-pointz)/distance) > np.sin(5*np.pi/180.0))*5000
-                        + (distance < 400)*5000 + (g[visible] < pointz+offset)*5000)
-        
+                        + (distance < 400)*5000 + (g[visible] < pointz+offset)*5000
+                        + (s[visible] < 45)*5000)
+
         # y then x
         inds = [a[idx] for a in np.where(visible)]
 
@@ -144,7 +145,7 @@ def flyBy(dirname, above=False, stepsize=3):
         
     ##### how far extra around bounds of path
     #extend = 1000
-    extend = 700
+    extend = 800
 
 
     # PLOTTING SURFACE
@@ -183,6 +184,12 @@ def flyBy(dirname, above=False, stepsize=3):
         if distances[i] < 800: # usure about choice or if better way to check (e.g. opposite direction to surface)
             groups[i+1] = groups[i]
     pointCols = pointCols[groups]
+
+##    plt.close()
+##    plt.scatter(surfxs,surfys)
+##    plt.show()
+##    return
+
     
     for g in np.unique(groups):
         i = np.argmin(lengths[groups == g])
@@ -191,7 +198,10 @@ def flyBy(dirname, above=False, stepsize=3):
         surfxs[j:k] = surfxs[j+i]
         surfys[j:k] = surfys[j+i]
         surfzs[j:k] = surfzs[j+i]
-        aspects[j:k] = aspects[j+i]
+
+        # approximation of coarse surface normal as average vector of each normal
+        aspects[j:k] = np.arctan2(-np.sum(np.sin(aspects[j:k]*np.pi/180)),-np.sum(np.cos(aspects[j:k]*np.pi/180)))*180.0/np.pi + 180.0
+
     # /Groups
 
 
@@ -202,6 +212,7 @@ def flyBy(dirname, above=False, stepsize=3):
     for i in range(0,len(xs),stepsize):
         ax.plot([xs[i],surfxs[i]],[ys[i],surfys[i]],[zs[i],surfzs[i]],color=pointCols[i],zorder=5)
 
+    
     ax.set_xlabel("x")
     ax.set_ylabel("y")
 
@@ -209,6 +220,12 @@ def flyBy(dirname, above=False, stepsize=3):
 
     # finding incidence
     aspects *= np.pi / 180.0 # convert to radians
+
+
+##    for i in np.unique(groups):
+##        plt.plot([surfxs[i],surfxs[i]+np.sin(aspects[i])*150],[surfys[i],surfys[i]+np.cos(aspects[i])*150],[surfzs[i],surfzs[i]], c="k")
+
+    
     incidence = np.array([(xs[i]-surfxs[i])*np.sin(aspects[i])+(ys[i]-surfys[i])*np.cos(aspects[i]) for i in range(len(xs))])
     incidence /= np.hypot([(xs[i]-surfxs[i]) for i in range(len(xs))],[(ys[i]-surfys[i]) for i in range(len(xs))])
 
@@ -217,6 +234,8 @@ def flyBy(dirname, above=False, stepsize=3):
 
     plt.show()
     plt.close()
+
+    
 
     return incidence, np.unique(groups)
 #    return distances, lengths, groups

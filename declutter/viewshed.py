@@ -118,11 +118,13 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,s
 
 
 if __name__=="__main__" and False:
-    import timeit
-    grid = np.full((1000,1000),0,float)
-    mask = np.full((1000,1000),0,bool)
-    px = 499.9
-    py = 500.1
-    t = timeit.Timer(lambda : viewshed(grid,px,py,mask,100,False,gridsize=2.0))
-    print t.timeit(500)
+    #import timeit
+    grid = np.full((400,400),0,float)
+    mask = np.full((400,400),1,bool)
+    px = 199.9
+    py = 200.1
+    grid[100:105] = 100.0
+    v = viewshed(grid,px,py,mask,80.0)
+    #t = timeit.Timer(lambda : viewshed(grid,px,py,mask,100,False,gridsize=2.0))
+    #print t.timeit(500)
 
