@@ -231,7 +231,7 @@ def matchMap(grid,left,low,cropLeft,cropLow,w,h,cellSize):
 ##    lower = int(height - (cropLow-low)/cellSize)
 ##    upper = int(lower - h)
 ##    return grid[upper:lower,l:r]
-    return grid[lower:upper,l:r]
+    return grid[max(0,lower):upper,max(0,l):r]
 
 
 def pathOnSurface(dirname,twoD = False):

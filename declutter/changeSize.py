@@ -3,6 +3,7 @@ import h5py
 from modelling import parameters
 import path
 import numpy as np
+from version import version
 
 # take path, generate bounds as min/max x and y then push out by param.env.maxDist
 # can only crop after projecting
@@ -29,7 +30,8 @@ def pathCrop(pathName, crop = [0,0]):
         f.create_dataset("heightmap",compression="gzip",data = hmap[yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]])
         f.create_dataset("slope",compression="gzip",data = slope)
         f.create_dataset("aspect",compression="gzip",data = aspect)
-        f["meta"] = np.array([xmin+xBounds[0]*cellsize, ymin+(height-yBounds[1])*cellsize,cellsize])
+        f["meta"] = np.array([xmin+xBounds[0]*cellsize, ymin+yBounds[0]*cellsize,cellsize])
+        f["version"] = version
     return 0
 
 
@@ -67,6 +69,7 @@ def resize(cellsize):
         f.create_dataset("slope", compression="gzip", data = slope)
         f.create_dataset("aspect", compression="gzip", data = aspect)
         f["meta"] = line
+        f["version"] = version
     return 0
     
 

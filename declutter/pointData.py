@@ -6,6 +6,7 @@ import viewshed
 from time import clock
 import h5py
 from modelling import parameters
+from version import version
 
 __all__ = ["Setup", "generateMaps"]
 
@@ -230,6 +231,7 @@ def store(path,dist,incidence,x,y,elevation,vis=None,visCorner = None, antennaDi
                 #f["antennaTheta"] = theta
                 #f["antennaPhi"] = phi
             f["meta"] = np.array([x,y,elevation,antennaDir])
+            f["version"] = version
     except IOError as e:
         print "Could not write to hdf5 file : "+e.message
         return -1

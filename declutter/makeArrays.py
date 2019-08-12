@@ -7,6 +7,7 @@ from projection import *
 import os
 import h5py
 from errors import RasterError
+from version import version
 
 
 __all__ = ["justAspect","justSlope","justHeightmap","makeAll","rastersToNumpy"]
@@ -137,6 +138,8 @@ def justAspect(source,sampleLat,sampleLon,cellSize=None,outDir=None):
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
                 f["meta"] = np.array([corner.X,corner.Y,cellSize])
+            if "version" not in f:
+                f["version"] = version
     except IOError as e:
         print "Error appending to 'maps.hdf5' : "+e.message
         return -1
@@ -176,6 +179,8 @@ def justSlope(source,sampleLat,sampleLon,cellSize=None,outDir=None):
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
                 f["meta"] = np.array([corner.X,corner.Y,cellSize])
+            if "version" not in f:
+                f["version"] = version
     except IOError as e:
         print "Error appending to 'maps.hdf5' : "+e.message
         return -1
@@ -214,6 +219,8 @@ def justHeightmap(source,sampleLat,sampleLon,cellSize=None,outDir=None):
                 f["meta"][:] = np.array([corner.X,corner.Y,cellSize])
             else:
                 f["meta"] = np.array([corner.X,corner.Y,cellSize])
+            if "version" not in f:
+                f["version"] = version
     except IOError as e:
         print "Error appending to 'maps.hdf5' : "+e.message
         return -1
@@ -257,6 +264,7 @@ def makeAll(source,sampleLat,sampleLon,cellSize = None,outDir = None):
             f.create_dataset("aspect",compression="gzip",data = aspect)
             f.create_dataset("slope",compression="gzip",data = slope)
             f["meta"] = np.array([corner.X,corner.Y,cellSize])
+            f["version"] = version
     except (RasterError,IOError) as e:
         print "Error making arrays for 'maps.hdf5' : "+e.message
         return -1
@@ -303,6 +311,7 @@ def rastersToHdf(heightmap,aspect=None,slope=None):
             f.create_dataset("aspect",compression="gzip",data = aspect)
             f.create_dataset("slope",compression="gzip",data = slope)
             f["meta"] = np.array([corner.X,corner.Y,cellSize])
+            f["version"] = version
     except IOError:
         print "Error: Could not write arrays to 'maps.hdf5'"
         return -1
