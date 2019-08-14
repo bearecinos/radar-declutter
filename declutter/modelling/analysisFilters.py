@@ -7,7 +7,7 @@ Only interested in visible points so, depending on type of filter, both 1D or
 import numpy as np
 from scipy import signal
 
-def smooth(grid, visible, threshold = 0.95, sampleSteps = 5, sampleArea = 10):
+def smooth(grid, threshold = 0.95, sampleSteps = 5, sampleArea = 10):
     '''Where glacier is rougher than walls in data, this filters out
     sufficiently rough points. Note that the edges of the array will have
     poor accuracy.

@@ -7,14 +7,39 @@ import pyproj
 import multiprocessing as mp
 import h5py
 import os
-#https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element
+from modelling import parameters
 
+def _makeDirections(xs,ys):
+    """Calculates the direction the antenna is facing at each point based on adjacent points.
+
+    Parameters
+    xs float array : The x-coordinates of the path.
+    ys float array : The y-coordinates of the path.
+
+    Returns
+    direction float array : The bearing of the antenna for each point.
+
+    Fails if path is less than 2 points due to index errors."""
+    direction = np.full_like(xs,0,float) # degrees
+    # endpoints are handled separately
+    direction[0] = 180.0/np.pi*(np.arctan2(xs[0]-xs[1], ys[0]-ys[1]))+180.0
+    direction[-1] = 180.0/np.pi*(np.arctan2(xs[-2]-xs[-1], ys[-2]-ys[-1]))+180.0
+    
+    m = np.full_like(xs,True,bool)
+    m[[0,-1]] = False
+    
+    m2 = np.roll(m,-1) # point behind
+    m3 = np.roll(m,1)  # point ahead
+    # central approximation
+    direction[m] = 180.0/np.pi*np.arctan2(xs[m2]-xs[m3], ys[m2]-ys[m3])+180.0
+    return direction
 
 def workerCall(args):
-    # args = (x,y,z,isOffset,angle,pathName)
-    vis,visCorner,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-2])
+    # args = (x,y,z,isOffset,angle,save_visible,pathName, env)
+    parameters.setEnv(args[-1])
+    vis,visCorner,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-3])
 
-    if args[5]:
+    if args[5]: # save_visible
         return pointData.store(args[6],dist,incidence,args[0],args[1],
                            elevation, vis,visCorner, args[4], theta, phi)
     else:
@@ -28,26 +53,23 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True,parallel=True):
     xs - float array : array of x coordinates of path.
     ys - float array : array of y coordinates of path.
     zs - float array : array of altitude/elevation above ground along path.
-    isOffset - bool (optional) : whether then given z coordinates are altitude or relative to the ground. Default is relative."""
+    isOffset - bool (optional) : whether then given z coordinates are altitude or relative to the ground.
+        Default is relative.
+    save_visible - bool (optional) : whether to save an array of which points are visible. Not needed
+        to make a radargram but helpful for extra analysis. Default is True.
+    parallel - bool (optional) : whether to process points across multiple processors. Default is True."""
     os.makedirs(name)
-    direction = np.full_like(xs,0,float) # degrees
-    direction[0] = 180.0/np.pi*(np.arctan2(xs[0]-xs[1], ys[0]-ys[1]))+180.0
-    direction[-1] = 180.0/np.pi*(np.arctan2(xs[-2]-xs[-1], ys[-2]-ys[-1]))+180.0
-    m = np.full_like(xs,True,bool)
-    m[[0,-1]] = False
-    m2 = np.roll(m,-1)
-    m3 = np.roll(m,1)
-    direction[m] = 180.0/np.pi*np.arctan2(xs[m2]-xs[m3], ys[m2]-ys[m3])+180.0
+    direction = _makeDirections(xs,ys)
     steps = len(xs)
     pool = mp.Pool(mp.cpu_count())
-    data = [(x,y,z,isOffset,angle,save_visible,name+"/point"+str(i)) for
+    data = [(x,y,z,isOffset,angle,save_visible,name+"/point"+str(i), parameters.env) for
              x,y,z,angle,i in zip(xs,ys,zs,direction,np.arange(steps))]
     fail = False
     try:
         if parallel:
             for r in progress(pool.imap_unordered(workerCall,data),steps):
                 pass
-        else:
+        else: # serial provides full error reporting
             for i in progress(range(steps)):
                 result = workerCall(data[i])
     except IOError:
@@ -69,7 +91,8 @@ def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True, 
         this is determined by the file extension and assumed to be 'gpx' if that is unclear.
     save_visible - bool (optional) : Whether or not the array of which points are visible and which aren't should
         be stored (significant proportion of the storage where only a few points are visible. Default is True.
-
+    parallel - bool (optional) : whether to process points across multiple processors. Default is True.
+    
     Returns
     0 if successful, otherwise -1.
     """
@@ -133,16 +156,16 @@ def _loadGpx(filename,crop=[0,0],outName=None):
     if root.get("targetNamespace") is not None:
         prefix = "{"+root.get("targetNamespace")+"}"
     
-    if outName is None:
+    if outName is None: # get name from data, else take filename
         try:
             n = root.iter(prefix+"name").next()
             outName = n.text
-        except StopIteration:
+        except StopIteration: # no name attribute
             outName = filename
         if outName[-4:] in [".gpx", ".xml"]:
             outName = outName[:-4] # removes file extension from name
     lats,lons,zs = [],[],[]
-    for pt in root.iter(prefix+"trkpt"): # recursively searches for points in document order
+    for pt in root.iter(prefix+"trkpt"): # searches for points in document order
         lats.append(pt.get("lat"))
         lons.append(pt.get("lon"))
         zs.append(pt.find(prefix+"ele").text)
@@ -173,7 +196,11 @@ _gpsProj = pyproj.Proj("+init=EPSG:4326") # wgs 84
 
 def gpsToXY(lons,lats):
     """Converts an array of longitude and latitude coordinates to x,y coordinates
-    for the relevant zone, either a UTM zone or UPS."""
+    for the relevant UTM zone.
+    Although this will use UPS coordinates when outside the bounds of UTM zones,
+    this has not been tested. In particular, elevation is unchanged. If UPS is
+    ever needed, the output should be checked to see if elevation also needs
+    some form of mapping or not to match the maps.hdf5 raster."""
     if -79.5 <= lats[0] and lats[0] <= 83.5:
         xs,ys,zoneNum,zoneLet = utm.from_latlon(lats,lons)
     elif -79.5 > lats[0]:
@@ -241,9 +268,8 @@ def showAboveGround(filename,crop=[0,0],style=None):
     height,width = grid.shape
 
     xs = (xs-left)/cellSize
-    #ys = height-(ys-low)/cellSize ## reversed so corner at [0,0] now
     ys = (ys-low)/cellSize
-    groundHeights = viewshed.quadHeight(grid,xs,ys)
+    groundHeights = viewshed.quadHeight(grid,xs,ys) # ground beneath each point
     plt.plot(zs,label="radar")
     plt.plot(groundHeights,label="ground")
     plt.legend()
@@ -257,6 +283,7 @@ def showOnSurface(filename,crop=[0,0],extend=10,style=None):
     Parameters
     filename - string : The file to generate data for.
     crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
+    extend - int (optional) : How many cells extra to display around area covered by path.
     style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
         this is determined by the file extension and assumed to be 'gpx' if that is unclear."""
     import matplotlib.pyplot as plt
@@ -277,24 +304,15 @@ def showOnSurface(filename,crop=[0,0],extend=10,style=None):
     
     xcoords = (np.amin(xs)-left)/cellSize, (np.amax(xs)-left)/cellSize
     xcoords = max(0,int(xcoords[0]-extend)), min(width,int(xcoords[1]+extend))
-    # reversed so corner at [0,0] now
-    #ycoords = height - 1 - (np.amax(ys)-low)/cellSize, height - 1 - (np.amin(ys)-low)/cellSize
-    #ycoords = max(0,int(ycoords[0]-extend)), min(height,int(ycoords[1]+extend))
     ycoords = (np.amin(ys)-low)/cellSize, (np.amax(ys)-low)/cellSize
     ycoords = max(0,int(ycoords[0]-extend)), min(height,int(ycoords[1]+extend))
     
-##    Y,X = np.indices(heightmap.shape)
-##    #Y = Y[::-1] # reversed so corner at [0,0] now
     heightmap = heightmap[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
 
-    # changed so that indices only made after cropping heightmap
     Y,X = np.indices(heightmap.shape)
     Y += ycoords[0]
     X += xcoords[0]
     
-##    Y = Y[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
-##    X = X[ycoords[0]:ycoords[1],xcoords[0]:xcoords[1]]
-
     # scale resolution to display in reasonable time
     size = heightmap.size
     if size > 200**2:
@@ -323,6 +341,7 @@ def checkValid(filename,crop = [0,0],style="gpx"):
     crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
     style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
         this is determined by the file extension and assumed to be 'gpx' if that is unclear."""
+    from modelling.parameters import env
     try:
         xs, ys, zs = loadData(filename, crop, style)
     except IOError:
@@ -336,14 +355,14 @@ def checkValid(filename,crop = [0,0],style="gpx"):
         left,low,cellSize = f["meta"][()]
     height,width = heightmap.shape
     Y,X = np.indices(heightmap.shape)
-    # reversed so corner at [0,0] now
-    #Y = Y[::-1]
+    
     X = left + X*cellSize
     Y = low + Y*cellSize
     right = left + width * cellSize
     high = low + height * cellSize
-    xBounds = [left+3000,right-3000]
-    yBounds = [low+3000,high-3000]
+    d = env.getMaxDist()
+    xBounds = [left+d,right-d]
+    yBounds = [low+d,high-d]
     
     ar = np.full(len(xs),True)
     
@@ -351,13 +370,13 @@ def checkValid(filename,crop = [0,0],style="gpx"):
     undefinedGround = 0
     for i in range(len(xs)):
         x,y  = xs[i], ys[i]
-        # points within 3km
-        m = ((X-x)**2+(Y-y)**2)<3000**2
+        
+        m = ((X-x)**2+(Y-y)**2)<d**2 # points within range being considered
         if np.any(np.isnan(heightmap[m])) or x<xBounds[0] or x>xBounds[1] or y<yBounds[0] or y>yBounds[1]:
             notFullRange += 1
         # points used for interpolating ground height
         m = ((X-x)**2 <= cellSize**2) & ((Y-y)**2 <= cellSize**2)
-        if np.any(np.isnan(heightmap[m])) or x < left or x > right or y < low or y > high:
+        if np.any(np.isnan(heightmap[m])) or m.size < 4:
             undefinedGround += 1
             ar[i] = False
     print "{0} of {1} points have part of range undefined.".format(notFullRange,len(xs))

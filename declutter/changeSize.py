@@ -1,4 +1,4 @@
-"""Provides a method to resample the arrays stored in maps.hdf5."""
+"""Provides methods for reducing the size of the maps.hdf5 file."""
 import h5py
 from modelling import parameters
 import path
@@ -10,6 +10,8 @@ from version import version
 # do in arcpy (changes values?) or numpy
 # No way to remove data from array, just removes name, hence overwrite whole file
 def pathCrop(pathName, crop = [0,0]):
+    '''Removes areas of the arrays which are not needed to process the given path.
+    crop = [A,B] also avoids considering the first A and last B points of the path.'''
     parameters.loadParameters()
     d = parameters.env.getMaxDist()
     xs,ys,_ = path.loadData(pathName,crop)
@@ -20,7 +22,7 @@ def pathCrop(pathName, crop = [0,0]):
 
         xBounds = [max(0,int((np.amin(xs)-d-xmin)/cellsize)),
                    min(width,int((np.amax(xs)+d-xmin)/cellsize)+1)]
-        # updated to expect lower left in [0,0]
+        
         yBounds = [max(0,int((np.amin(ys)-d-ymin)/cellsize)),
                    min(height,int((np.amax(ys)+d-ymin)/cellsize)+1)]
         slope = f["slope"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
@@ -37,7 +39,7 @@ def pathCrop(pathName, crop = [0,0]):
 
 def resize(cellsize): 
     """Changes the size of the cells in an existing numpy array. The lower left
-    corner is unchanged i.e. array[-1,0].
+    corner is unchanged i.e. array[0,0].
     
     Parameters
     cellsize - float : The size of each new cell in metres. This must be
@@ -54,15 +56,12 @@ def resize(cellsize):
         print "Changing from cell size of "+str(originalSize)+" to "+str(cellsize)
         factor = int(cellsize/originalSize)
         
-        # keeps cell corresponding to (min-x, min-y)
-        # no longer reverse file as should be at [0,0]
         heightmap = f["heightmap"][::factor,::factor]
         aspect = f["aspect"][::factor,::factor]
         slope = f["slope"][::factor,::factor]
 
         # update metaData with new cell size
         line[-1] = cellsize
-
         
     with h5py.File("maps.hdf5","w") as f:
         f.create_dataset("heightmap", compression="gzip", data = heightmap)

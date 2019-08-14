@@ -5,9 +5,11 @@ import numpy as np
 wavelength = 100
 freq = 3e8/wavelength # 3 MHz
 
+
 class Env:
     dt = 1.25e-8
     steps = 1600
+    figsize = (12, 6.8)
     def __str__(self):
         return "Settings: maxTime = "+str(self.dt*self.steps)+", dt = "+str(self.dt)+", steps = "+str(self.steps)
     def getDt(self):
@@ -71,12 +73,17 @@ def setSteps(n = 1600):
     """Sets the number of samples in the radargram/wiggle plot. This
     changes the maximum range of the plot. Default is 1600."""
     env.steps = int(n + 0.5) # near rounding
+
+def setEnv(e):
+    # set parameters to match given instance
+    # without changing object reference
+    env.dt = e.dt
+    env.steps = e.steps
  
 loadParameters()
 
-figsize = (12,6.8)
 def setFigSize(x,y):
     """Sets the size of any plots. Default is (12,6.8)"""
     global figsize
-    figsize = (x,y)
+    env.figsize = (x,y)
     

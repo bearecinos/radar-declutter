@@ -1,5 +1,9 @@
 """Enables projection of an arcMap raster into a different coordinate system
-using arcpy."""
+using arcpy.
+Although this projects to UPS coordinates where the point provided
+is outside the range of UTM zones, this has not been tested.
+In particular, elevation values may no longer be treated correctly.
+"""
 import arcpy
 import numpy as np
 import utm
@@ -9,8 +13,8 @@ from errors import RasterError
 
 def determineSystem(lat,lon):
     """Returns a string arcpy recognises as a spatial reference.
-    This wil be for the UTM zone of the provided coordinates, except if
-    they are near the poles, in which case the UPS system is used."""
+    This wil be for the UTM zone of the provided coordinates, or a
+    UPS system if outside the bounds of UTM zones."""
     if lat > 83.5:
         return north
     if lat < -79.5:
@@ -25,13 +29,6 @@ def determineSystem(lat,lon):
 north = 'Projected Coordinate Systems/Polar/UPS North'
 south = 'Projected Coordinate Systems/Polar/UPS South'
 prefix = 'Projected Coordinate Systems/UTM/WGS 1984/Northern Hemisphere/WGS 1984 UTM Zone '
-
-# utm limits are -80 and +84, have 0.5 degree overlap with polar so convert if <-79.5 or >83.5
-# (solves issue of being right on boundary with first gps point and crossing later)
-
-# all mappings should be based on same gps path so should be consistent.
-# still need utm to determine the zone
-# possible only arcMap will know used coordinate system so need reference gps point
 
 def project(source, systemName, saveAs = "projected"):
     """Converts the input raster to the given coordinate system. Note that this

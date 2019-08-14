@@ -1,7 +1,9 @@
 """Uses a 'maps.hdf5' file and directory of .hdf5 files for points to model
 the radargram/wiggle plots seen. Also contains a range of methods to allow
 the model to be altered, such as the backscatter model or the wave to convolve
-with the result."""
+with the result.
+Takes all default options from modelling.defaults if not passed to methods.
+Also single plot rather than 'compare' for radargrams."""
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -13,9 +15,8 @@ from progress import progress
 import h5py
 import align
 import modelling
+from modelling.defaults import default
 
-__all__ = ["loadArrays", "processSlice", "models", "titles", "compare", "wiggle", "manyWiggle",
-           "showWave", "showDirectionality"]
 
 env = modelling.parameters.env
 
@@ -26,6 +27,8 @@ def _time(distance):
 
 
 def bandpass_filter(data, lowcut, highcut, fs, order=5):
+    '''Currently not used but commented out in processSlice().
+    See scipy documentation for a better idea of how this works.'''
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
@@ -54,9 +57,9 @@ def loadArrays(filename):
             phi = f["antennaPhi"][()]
     return distance,angle,theta,phi
 
-# Replace GaussianDot with RC
-def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.raySpecular,
-                 wave=modelling.waves.GaussianDot(),rFactor=0.0,directional=modelling.directivity.constant):
+
+def processSlice(distance,angle,theta,phi,intensityModel=None,
+                 wave=None,rFactor=0.0,directional=None):
     """Models the response seen at a single point.
 
     Parameters
@@ -67,9 +70,9 @@ def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.r
         coordinates, with the ends of the antenna being the poles. These can
         be None, in which case they are not considered.
     intensityModel - function (optional) : a function of incidence angle for the
-        backscatter from a surface. raySpecular by default i.e. cos(2 theta)
+        backscatter from a surface. 
     wave - class instance (optional) : a model of the wave to convolve with the
-        response. GaussianDot() by default.
+        response. 
     rFactor - float (optional) : How intensity should fall with distance. 0 by default.
     directional - function  (optional) : A function of theta and phi for the
         directivity of the antenna.
@@ -77,10 +80,19 @@ def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.r
     Returns
     convol - float array : A time series of the modelled response.
     """
+    if intensityModel is None:
+        intensityModel = default.getIntensity()
+    if wave is None:
+        wave = default.getWave()
+    if directional is None:
+        directional = default.getDirectivity()
+
+        
     m = (distance < env.getMaxDist())
     t = (_time(distance[m])/env.getDt()).astype(int) # indices into radargram timesteps
-    
-    intensity = intensityModel(angle[m]) / np.power(distance[m],rFactor)
+
+    intensity = intensityModel(angle[m])
+    intensity /= np.power(distance[m],rFactor)
     
     # directionality 
     if theta is not None:
@@ -88,8 +100,6 @@ def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.r
 
     # total intensity recieved at each timestep
     sample = np.array([np.sum(intensity[t==i]) for i in range(env.getSteps())])
-    #sample = np.array([np.sum(t==i) for i in range(_steps)])
-    #sample = np.array([np.sum(intensity[t==i])/(1+np.sum(t==i)) for i in range(_steps)])
     
     # convolution
     w = wave.amplitude(np.linspace(0.0,env.getMaxTime(),env.getSteps()))
@@ -101,16 +111,8 @@ def processSlice(distance,angle,theta,phi,intensityModel=modelling.backscatter.r
 
     return convol
 
-# default models to compare radargrams of
-#models = [modelling.backscatter.rayModel,modelling.backscatter.ray2Model,
-   #       modelling.backscatter.Min2,modelling.backscatter.specular8Model]
-#titles = ["Ray tracing n=1","Ray tracing n=2","Minnaert k=2", "spec8"]
-models = [modelling.backscatter.Min2]
-titles = ["title"]
-
-def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,models=models,
-            titles=titles,directional=modelling.directivity.constant,display=True, clip = 0
-            ,rFactor = 0.0, parallel = True):
+def radargram(name,adjusted=False,wave=None,save=None,intensityModel = None,
+            title=None,directional=None,display=True, clip = 0,rFactor = 0.0, parallel = True):
     '''Plots the radargram for the points in the given directory once for each
     model given in the models list. Adjusted aligns the y-axis by elevation
     rather than timing. The wave used by the model can also be changed and setting
@@ -123,9 +125,8 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
                     the surface directly beneath the radar with the top of the plot.
     wave - Wave instance : the wave to convolve over the response.
     save - string (optional) : the name of the file to save the radargram in.
-    models - function list (optional) : Functions of incidence angle to use for modelling the response.
-    titles - string list (optional) : Names to display above each plot, corresponding to the model
-        in the same index in the models list. Both use default lists defined in this module.
+    intensityModel - function (optional) : Function of incidence angle to use for modelling the response.
+    title - string (optional) : Names to display above plot.
     directional - function (optional) : A function for the directionality of the antenna
         in terms of spherical coordinates from the ends of the antenna.
     display - bool (optional) : Display the plot once draw. Default True.
@@ -135,28 +136,36 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
     returnData - 2D float array : The generated radargram data.
     Returns -1 if the method fails.
     '''
+    if intensityModel is None:
+        intensityModel = default.getIntensity()
+    if wave is None:
+        wave = default.getWave()
+    if directional is None:
+        directional = default.getDirectivity()
+
+    
     print env
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=modelling.parameters.figsize)
+    plt.figure(figsize=env.figsize)
     try:
         files = os.listdir(name)
     except OSError as e:
         return fileError(e.filename)
     files.sort(key=lambda x : int(x[5:-5])) # assumes 'pointX.hdf5'
     
-    returnData = np.full((len(models),len(files),env.getSteps()),0,float) # 3D - many subplots
+    returnData = np.full((len(files),env.getSteps()),0,float) 
     
     p = mp.Pool(mp.cpu_count())
     # data needed to run across several processors
-    data = [(i,name+"/"+files[i],wave,models,directional,env,rFactor) for i in range(len(files))]
+    data = [(i,name+"/"+files[i],wave,intensityModel,directional,env,rFactor) for i in range(len(files))]
     try:
         if parallel:
-            for i, ars in progress(p.imap_unordered(worker,data),len(files)):
-                returnData[:,i] = ars
+            for i, ar in progress(p.imap_unordered(worker,data),len(files)):
+                returnData[i] = ar
         else: # non-parallel option. Runs on same thread so get proper error reporting
             for j in progress(range(len(files))):
-                i,ars = worker(data[j])
-                returnData[:,i] = ars
+                i,ar = worker(data[j])
+                returnData[i] = ar
     except IOError as e: 
         p.close()
         print "\nError reading hdf5 file :\n"+e.message
@@ -164,28 +173,26 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
     p.close()
 
     if adjusted: # align first responses with top of radargram
-        for i in range(len(models)):
-            returnData[i] =  align.minAlign(returnData[i], env.getDx(), 200.0)
+        returnData =  align.minAlign(returnData, env.getDx(), 200.0)
 
-    cells = int(np.ceil(np.sqrt(len(models))))*110
     ys = np.linspace(0, env.getMaxTime(), env.getSteps())
-    # clipping
-    if clip:
+    
+    if clip: # clip if set to non-zero
         returnData = np.clip(returnData,np.percentile(returnData,clip),np.percentile(returnData,100-clip))
     
-    for j in range(len(models)):
-        plt.subplot(cells+j+1)
-        plt.ylim(env.getMaxTime(), 0)
-        draw = np.swapaxes(returnData[j],0,1)
+    plt.ylim(env.getMaxTime(), 0)
+    draw = np.swapaxes(returnData,0,1)
   
-        plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
-        # normalise data
-        #draw = (draw-np.amin(draw))/(np.amax(draw)-np.amin(draw))
-        #plt.imshow(draw,aspect="auto")
-        #plt.contourf(np.arange(len(files)), ys, draw, 100, cmap="Greys",norm=colors.PowerNorm(1.5))
-        #plt.pcolormesh(np.arange(len(files)), ys, draw,cmap="Greys") # alternative cmap is "RdBu_r" where +ve = red
-        plt.title(titles[j])
-        plt.colorbar()
+    plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
+    # normalise data + other options for ways of plotting (may need to reverse draw array i.e. draw[::-1])
+    #draw = (draw-np.amin(draw))/(np.amax(draw)-np.amin(draw))
+    #plt.imshow(draw,aspect="auto")
+    #plt.contourf(np.arange(len(files)), ys, draw, 100, cmap="Greys",norm=colors.PowerNorm(1.5))
+    #plt.pcolormesh(np.arange(len(files)), ys, draw,cmap="Greys") # alternative cmap is "RdBu_r" where +ve = red
+    if title is not None:
+        plt.title(title)
+    plt.colorbar()
+    
     if save is not None:
         print "saving"
         plt.savefig(save)
@@ -195,34 +202,44 @@ def compare(name,adjusted=False,wave=modelling.waves.GaussianDot(),save=None,mod
 
 def worker(args):
     global env
-    i,name,wave,models,directional,env,rFactor = args
+    i,name,wave,intensityModel,directional,env,rFactor = args
     distance,angle,theta,phi = loadArrays(name)
-    ars = np.full((len(models),env.getSteps()),0,float)
-    for j in range(len(models)):
-        ars[j] = processSlice(distance,angle,theta,phi,models[j],wave,directional=directional,
+    ar = processSlice(distance,angle,theta,phi,intensityModel,wave,directional=directional,
                               rFactor = rFactor)
-    return i, ars
+    return i, ar
 
-def wiggle(filename,intensityModel=modelling.backscatter.raySpecular,
-           wave=modelling.waves.GaussianDot(),display=True):
+def wiggle(filename,intensityModel=None,
+           wave=None, directional = None, display=True):
     """Calculates the response for a single point file.
 
     Parameters
     filename - string : Name of the file to generate the response for.
     intensityModel - function (optional) : a function of incidence angle for the
-        backscatter from a surface. raySpecular by default i.e. cos(2 theta)
+        backscatter from a surface. 
     wave - class instance (optional) : a model of the wave to convolve with the
-        response. GaussianDot() by default.
-    display - bool (optional) : Whether to plot the data or not. Default is True.
+        response.
+    directional - function (optional) : a function of spherical coordinates
+        for radar directivity.
+    display - bool (optional) : Whether to plot and show the data or not. Default is True.
 
     Returns
     Time series of predicted response if successful, otherwise -1.
     """
+
+    if intensityModel is None:
+        intensityModel = default.getIntensity()
+    if wave is None:
+        wave = default.getWave()
+    if directional is None:
+        directional = default.getDirectivity()
+
+    
     try:
         distance,angle,theta,phi = loadArrays(filename)
     except IOError:
         return fileError(filename)
-    ys = processSlice(distance,angle,theta,phi,intensityModel=raySpecular,wave=wave)
+
+    ys = processSlice(distance,angle,theta,phi,intensityModel,wave,directional = directional)
     # Clipping
     #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
     if display:
@@ -232,9 +249,9 @@ def wiggle(filename,intensityModel=modelling.backscatter.raySpecular,
         plt.show()
     return ys
 
-def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecular,
-               wave=modelling.waves.GaussianDot(),rFactor=0,
-               directional = modelling.directivity.constant, compareTo = None):
+def manyWiggle(name,adjusted=False,intensityModel=None,
+               wave=None,rFactor=0,
+               directional = None, compareTo = None):
     '''Plots the response for the points in the given directory side by side.
 
     Parameters
@@ -243,9 +260,9 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
     adjusted - bool (optional) : the data is shifted for each point to align the response
                     from the surface directly beneath the radar with the top of the plot.
     intensityModel - function (optional) : a function of incidence angle for the
-        backscatter from a surface. raySpecular by default i.e. cos(2 theta)
+        backscatter from a surface. 
     wave - class instance (optional) : a model of the wave to convolve with the
-        response. GaussianDot() by default.
+        response. 
     rFactor - float (optional) : How intensity should fall with distance. 0 by default.
     directional - function  (optional) : A function of theta and phi for the
         directivity of the antenna.
@@ -256,9 +273,16 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
     The 2D array of predicted responses, or the normalised correlation coefficient if
     compareTo was provided. If unsuccessful, returns -1.
     '''
+    if intensityModel is None:
+        intensityModel = default.getIntensity()
+    if wave is None:
+        wave = default.getWave()
+    if directional is None:
+        directional = default.getDirectivity()
+    
     print env
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
-    plt.figure(figsize=modelling.parameters.figsize)
+    plt.figure(figsize=env.figsize)
     try:
         files = os.listdir(name)
     except OSError as e:
@@ -266,8 +290,6 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
     files.sort(key=lambda x : int(x[5:-5])) # assumes "point" prefix
     heights = []
 
-    cells = int(np.ceil(np.sqrt(len(files))))*110
-    
     draw = np.full((len(files),env.getSteps()),0,float)
     for i in range(len(files)):
         filename = files[i]
@@ -286,7 +308,8 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
     #draw = np.clip(draw,np.percentile(draw,1),np.percentile(draw,99))
     if compareTo is not None:
         compareTo *= np.amax(draw)/np.amax(compareTo)
-    
+
+    # how far apart to draw each wiggle plot
     m = np.amax(abs(draw))*2.0
     for i in range(len(files)):
         plt.plot(draw[i]+m*i,ys,"k-",zorder=5,label="model")
@@ -300,17 +323,17 @@ def manyWiggle(name,adjusted=False,intensityModel=modelling.backscatter.raySpecu
     plt.xlim(-m,m*len(files))
     plt.gca().axes.get_xaxis().set_visible(False)
 
-    ######## Re-enable plotting once done with tests
-    #plt.show()
-    ########
+    plt.show()
+    
     if compareTo is None:
         return draw
     a = draw.reshape(-1)
     b = compareTo.reshape(-1)
-    return np.corrcoef(a,b)[0,1]
+    return np.corrcoef(a,b)[0,1] # correlation between actual and comparison data
     
 def showWave(wave=modelling.waves.GaussianDot()):
     """Plot the given wave over the time the radargram records for."""
+    # Samples over whole window (plus slightly before)
     x = np.linspace(-env.getMaxTime()/10.0,env.getMaxTime(),env.getSteps()*2)
     y = wave.amplitude(x)
     plt.plot(x,y)
@@ -321,14 +344,15 @@ def showWave(wave=modelling.waves.GaussianDot()):
 
 def showDirectivity(directional=modelling.directivity.broad, twoD = False):
     """Creates a spherical plot of the directivity of the antenna.
-    Setting twoD causes the model to ignore phi, the azimuth angle."""
+    Setting twoD causes the model to ignore phi, the azimuth angle.
+    Radius is proportional to intensity received in that direction."""
     import mpl_toolkits.mplot3d.axes3d as axes3d
     if twoD:
         theta, phi = np.linspace(0, 2 * np.pi, 361), 0
     else:
         theta, phi = np.linspace(0, 2 * np.pi, 61), np.linspace(0, np.pi, 31)
     theta, phi = np.meshgrid(theta,phi)
-    r = directional(theta,phi)
+    r = directional(theta,phi) 
     X = r * np.sin(theta) * np.cos(phi)
     Y = r * np.sin(theta) * np.sin(phi)
     Z = r * np.cos(theta)

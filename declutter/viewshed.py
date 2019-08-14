@@ -4,14 +4,13 @@ import math
 
 _NODATA = np.nan
 
-
-# now that grid flipped so [0,0] is lower left, indices should be clearer/more consistent
 def quadHeight(grid,x,y):
     """Calculates the interpolated height of the surface below the given point.
+    Quadratic interpolation in both axes.
 
     Parameters
     grid - 2D float array : A heightmap of the surface.
-    x,y - float arrays :Indices of points on the grid. i.e. 0,0 refers to grid[0,0].
+    x,y - float arrays :Indices of points on the grid. i.e. 1,2 refers to grid[2,1].
     """
     res = np.full_like(x,_NODATA,float) 
     h,w = grid.shape
@@ -36,17 +35,17 @@ def _visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
     if len(x) == 0:
         return vis # else get error when attempting to call np.amax on 0 length array
     endh = quadHeight(grid,x,y)
-    vis[np.isnan(endh)] = False # won't be detected later as thish will be NaN
-    if isOffset: # have to wrap into array and unpack again
+    vis[np.isnan(endh)] = False # won't be detected later as this will be NaN
+    if isOffset: # have to wrap as an array and unpack again
         starth = quadHeight(grid,np.array([startx]),np.array([starty]))[0]+elevation
     else:
         starth = elevation
     dx = x-startx
     dy = y-starty
     norm = np.hypot(dx,dy)
-    #norm = (dx**2+dy**2)**0.5
 
     # avoids divide by 0 cases in coming loop
+    # anything less than stepSize is automatically visible
     norm[norm==0] = stepSize/2.0
     
     dx *= stepSize/norm
@@ -67,8 +66,7 @@ def _visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
         vis[tuple(a[w] for a in np.where(m))] = False
     return vis
 
-cost = 0
-# grid flipped to have same y coordinates, no longer height - 1 - y
+
 # assumes point actually inside grid (checked by call to quadheight to get groundHeight first in stateless.py)
 def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,stepSize=None):
     """Calculates which points on a grid are visible from a given viewpoint.
@@ -92,10 +90,7 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,s
     Returns
     view - 2D bool array : A mask where only points with value True are visible.
     """
-    global cost
     gheight, gwidth = grid.shape
-    
-   # pointy = gheight - pointy - 1# grid flipped so [0,0] is lower left now
     
     view = np.full_like(grid,False,bool)
 
@@ -107,7 +102,9 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,s
 
     m = np.where(mask)
     
-    # step size decreases in multiples of 8 to reduce overall work
+    # step size decreases in multiples of 8 to reduce overall work.
+    # factor chosen by experiment, checking total number of points
+    # tested for each factor.
     scaleUp = int(math.log(gheight/(2.0*stepSize),8))
     for s in range(scaleUp,-1,-1):
         result = _visible(grid,pointx,pointy,xs[m],ys[m],elevation,isOffset,stepSize*8.0**s).astype(bool)
@@ -115,16 +112,4 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,s
         m = tuple(a[result] for a in m) # smaller mask for next loop
 
     return view
-
-
-if __name__=="__main__" and False:
-    #import timeit
-    grid = np.full((400,400),0,float)
-    mask = np.full((400,400),1,bool)
-    px = 199.9
-    py = 200.1
-    grid[100:105] = 100.0
-    v = viewshed(grid,px,py,mask,80.0)
-    #t = timeit.Timer(lambda : viewshed(grid,px,py,mask,100,False,gridsize=2.0))
-    #print t.timeit(500)
 

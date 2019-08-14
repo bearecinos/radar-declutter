@@ -1,5 +1,5 @@
 """Provides a way of running the module by command line arguments, using the
-three methods defined below. The -h option provides information on the whole
+methods defined below. The -h option provides information on the whole
 interface and also on each of the methods.
 """
 import argparse
@@ -13,6 +13,7 @@ def load(args):
     return makeArrays.makeAll(args.filename,args.latitude,args.longitude,args.cellSize,args.out)
 
 def crop(args):
+    """Reduces the arrays in maps.hdf5 to the area of interest for a certain path."""
     import changeSize
     return changeSize.pathCrop(args.filename, crop = [args.start, args.end])    
 
@@ -31,7 +32,7 @@ def model(args):
         return fullModel.processData(args.filename,[args.start,args.end],args.save,args.type,save=args.no)
     else: # intermediate files
         if args.out is None:
-            if "." in args.filename[-4:]:
+            if "." in args.filename[-4:]: # set name to save radargram as
                 args.out = args.filename[:-4]
             else:
                 args.out = args.filename
@@ -43,35 +44,35 @@ def model(args):
                 args.save = args.filename[:-4]+".png"
             else:
                 args.save = args.filename+".png"
-        return radar.compare(args.out,save=args.save)
+        return radar.radargram(args.out,save=args.save)
 
 def display(args):
     """Produces a radargram from existing intermediate data.
-    Returns 0 if successful, else -1."""
+    Returns the radargram output if successful, else -1."""
     import radar
     if args.no and args.save is None:
         args.save = args.directory + ".png"
-    return radar.compare(args.directory,args.adjusted,save=args.save)
+    return radar.radargram(args.directory,args.adjusted,save=args.save)
 
 def setParams(args):
-    """Overwrites any existing parameters stored which will revert to their default values if not fixed by arguments passed."""
+    """Overwrites any existing parameters stored, which will revert to their
+    default values if not fixed by the arguments passed."""
     import numpy as np
     import os
     from modelling import parameters
 
-    # display
+    # asking to print settings and set new ones at the same time
     if args.show  and (args.maxdist is not None or args.maxtime is not None or
                                   args.steps is not None or args.dx is not None or args.dt is not None):
         print "Cannot show and set at same time. Do not use --show with other options."
         return -1
-    elif args.show:
+    elif args.show: # print settings
         print parameters.env
         return 0
     if (args.steps is not None and (args.maxdist is not None or args.maxtime is not None) and
-        (args.dx is not None or args.dt is not None)):
-        if args.maxdist != args.dx * 1.5e8:
-            print "Contradiction, cannot set range, granularity and total number of steps."
-            return -1
+        (args.dx is not None or args.dt is not None)): # over specified
+        print "Contradiction, should not set range, granularity and total number of steps."
+        return -1
     else: # set
         # clear old settings
         parameters.setTimeStep()
@@ -96,7 +97,7 @@ def setParams(args):
             elif args.maxtime is not None:
                 parameters.setMaxTime(args.maxtime)
 
-        else: # granularity inferred from max and steps
+        else: # granularity inferred from max/steps
             if args.maxtime is None:
                 args.maxtime = args.maxdist / 1.5e8
             parameters.setTimeStep(args.maxtime/args.steps)
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     # base command for any part of package
     parser = argparse.ArgumentParser(prog="python -m declutter")
 
-    # will contain separate parsers for 3 different subcommands
+    # will contain separate parsers for different subcommands
     subparsers = parser.add_subparsers(description="""Select one of the commands listed below.
                         Use '<command> -h' to display help for that particular command.
                         For more detailed instructions, see the gitlab page
@@ -173,11 +174,12 @@ if __name__ == "__main__":
     exclusive.add_argument("--dt",type=float, help = "Time resolution of the radargram.")
     paramParse.set_defaults(func=setParams)
 
-    # processing a path file to create a radargram
+    # crop a map to a particular path
     cropParse = subparsers.add_parser('crop', description="""
                         Crop the 'maps.hdf5' file to just the region needed by a specific path file, considering the range
                         specified in the config file.""",
                         help='Crop the maps.hdf5 file.')
+    cropParse.add_argument("filename",help="Name of the path file to crop to.")
     cropParse.add_argument("--start",type = int,default=0, help = "How many points to ignore from the start of the path.")
     cropParse.add_argument("--end",type = int,default=0, help = "How many points to ignore from the end of the path.")
     cropParse.set_defaults(func=crop)

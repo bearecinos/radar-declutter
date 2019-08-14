@@ -1,3 +1,8 @@
+'''Used to shift each radargram slice so that the first response is at the
+top of the plt. Where the first response is not detected within a given range,
+the data is assumed to be incomplete and this point is interpolated from
+neighbouring values.'''
+
 import numpy as np
 
 def fillGaps(indices):
@@ -5,7 +10,7 @@ def fillGaps(indices):
     valid points to replace the NaNs. NaNs at the end of the range are set to
     the first valid point closest to that end of the array."""
     nans = np.isnan(indices) # mask of NaN values
-    which = lambda x : np.where(x)[0] # indices of a mask
+    which = lambda x : np.where(x)[0] # gets indices of a 1D mask
     
     # interpolate the values for NaN indices given the values of
     # non-NaN values. Fill the NaN indices with these values.

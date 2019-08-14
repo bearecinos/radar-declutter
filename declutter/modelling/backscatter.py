@@ -21,7 +21,7 @@ def ray2Model(theta):
 
 def specular2Model(theta):
     return np.power(np.cos(theta),2)
-def specular8Model(theta):
-    return np.power(np.cos(theta),8)
-def IDLreflection(theta):
+def specular6Model(theta):
     return np.power(np.cos(theta),6)
+def IDLModel(theta):
+    return np.power(np.cos(theta),8)

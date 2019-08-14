@@ -7,11 +7,13 @@ available and the slow setup time for arcpy if it is never needed."""
 
 import warnings
 # ignore warnings when comparing arrays containing NaNs.
-# Always get False from NaN > x which is desired behaviour.
+# Always get False from NaN > x which is the desired behaviour.
+# | np.isnan(x) is included where the result should be true.
 warnings.filterwarnings("ignore")
 
-# modules which should be immediately visible
-__all__ = ["changeSize","radar","path","pointData","makeArrays"]  
+# modules to make visible with import *
+__all__ = ["changeSize","radar","path","pointData","makeArrays",
+           "modelling", "analysis", "compare", "fullModel"]  
 
 # runs whenever any part of package is run.
 try:

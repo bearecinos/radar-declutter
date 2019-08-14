@@ -82,6 +82,7 @@ def coordinateSystem(raster,sampleLat,sampleLon,outDir=None):
     if -79.5 <= sampleLat and sampleLat <= 83.5:
         if "WGS_1984_UTM_Zone" not in e.spatialReference.name:
             print "Projecting to UTM coordinate system."
+            print "New name: "+out
             return project(raster,determineSystem(sampleLat,sampleLon),out)
     else: # too close to poles for UTM zones
         if "UPS" not in e.spatialReference.name:
