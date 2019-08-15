@@ -36,7 +36,7 @@ def model(args):
                 args.out = args.filename[:-4]
             else:
                 args.out = args.filename
-        if path.processData(args.filename,[args.start,args.end],args.out,args.type, args.view):
+        if path.processData(args.filename,[args.start,args.end],args.out,args.type,save_visible=args.view):
             print "Could not generate point data files."
             return -1
         if args.no and args.save is None: # set name to save radargram as

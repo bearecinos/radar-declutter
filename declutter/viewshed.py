@@ -30,16 +30,12 @@ def quadHeight(grid,x,y):
     res[m] = (dy*dy*b + (1-dy)*(1-dy)*a)/ty
     return res
 
-def _visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
+def _visible(grid,startx,starty,x,y,elevation=100,stepSize=1.0):
     vis = np.full_like(x,True,bool)
     if len(x) == 0:
         return vis # else get error when attempting to call np.amax on 0 length array
     endh = quadHeight(grid,x,y)
     vis[np.isnan(endh)] = False # won't be detected later as this will be NaN
-    if isOffset: # have to wrap as an array and unpack again
-        starth = quadHeight(grid,np.array([startx]),np.array([starty]))[0]+elevation
-    else:
-        starth = elevation
     dx = x-startx
     dy = y-starty
     norm = np.hypot(dx,dy)
@@ -50,11 +46,11 @@ def _visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
     
     dx *= stepSize/norm
     dy *= stepSize/norm
-    dh = (endh-starth)*stepSize/norm
+    dh = (endh-elevation)*stepSize/norm
 
     thisx = startx
     thisy = starty
-    thish = starth
+    thish = elevation
     for i in range(1,int(np.amax(norm)/stepSize)):
         m = (norm >= (i+1)*stepSize)&(vis==1) 
         thisx += dx
@@ -68,7 +64,7 @@ def _visible(grid,startx,starty,x,y,elevation=100,isOffset=True,stepSize=1.0):
 
 
 # assumes point actually inside grid (checked by call to quadheight to get groundHeight first in stateless.py)
-def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,stepSize=None):
+def viewshed(grid,pointx,pointy,mask,elevation=100,gridsize=30.0,stepSize=None):
     """Calculates which points on a grid are visible from a given viewpoint.
     If the ray from the viewpoint to a surface passes over a part of the grid where the height
     is unknown (NaN), that surface is treated as not being visible. This should only affect
@@ -81,7 +77,6 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,s
     mask - 2D bool array : A mask of the points to consider. Everything else is assumed to be not visible.
         e.g. because those points are known to be out of range or have back facing surfaces.
     elevation - float (optional) : The elevation of the viewpoint. By default this is 100m.
-    isOffset - bool (true) : Whether the elevation is relative to the surface beneath the radar or not. Default True.
     gridsize - float (optional) : The resolution of the grid. Default is 30m. Only important if stepSize is set.
     stepSize - float (optional) : The smallest resolution steps to take along the ray to each surface point to determine
         if it is visible. This is in world coordinates i.e. stepSize = 30 and gridSize = 30 means the smallest step
@@ -107,7 +102,7 @@ def viewshed(grid,pointx,pointy,mask,elevation=100,isOffset=True,gridsize=30.0,s
     # tested for each factor.
     scaleUp = int(math.log(gheight/(2.0*stepSize),8))
     for s in range(scaleUp,-1,-1):
-        result = _visible(grid,pointx,pointy,xs[m],ys[m],elevation,isOffset,stepSize*8.0**s).astype(bool)
+        result = _visible(grid,pointx,pointy,xs[m],ys[m],elevation,stepSize*8.0**s).astype(bool)
         view[m] = result # clears points known to not be visible
         m = tuple(a[result] for a in m) # smaller mask for next loop
 

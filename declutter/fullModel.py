@@ -16,20 +16,21 @@ import align
 from modelling import parameters
 from modelling.defaults import default
 
-def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=True, parallel=True):
+def processData(filename,crop=[0,0],outName=None,style=None, offset = 0, adjusted=False,save=True, parallel=True):
     """Takes a gps path and displays a radargram for that path.
 
     Parameters
-    filename string  : The name of the file to generate a radargram for.
-    crop [int, int] (optional) : crop = [A,B] ignores the first A and last B points of the path.
-    outName string (optional) : The name of the file to save the radargram in. By default, this is
+    filename - string  : The name of the file to generate a radargram for.
+    crop - [int, int] (optional) : crop = [A,B] ignores the first A and last B points of the path.
+    outName - string (optional) : The name of the file to save the radargram in. By default, this is
         taken from 'filename' unless 'save' is set to False.
-    style string (optional) : The format of the input file, either 'gpx', 'dst' or 'xyz'. By default,
+    style - string (optional) : The format of the input file, either 'gpx', 'dst' or 'xyz'. By default,
         the loadData method determines the format from the file extension and assumes gpx if the extension
         is not recognised.
-    adjusted bool (optional) : Shift the data for each point to align the response from the surface
+    offset - float (optional) : Height to correct for where gps data taken from helicopter, not on radar. Default 0.
+    adjusted - bool (optional) : Shift the data for each point to align the response from the surface
         directly beneath the radar with the top of the plot.
-    save bool (optional) : Default True. If True, the radargram output is saved automatically.
+    save - bool (optional) : Default True. If True, the radargram output is saved automatically.
 
     Returns
     The radargram output if successful, otherwise -1.
@@ -38,6 +39,7 @@ def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=
     print parameters.env
     try:
         xs, ys, zs = path.loadData(filename, crop, style)
+        xs -= offset
     except IOError:
         print "Could not load data from file : "+filename
         if style is not None:
@@ -47,9 +49,9 @@ def processData(filename,crop=[0,0],outName=None,style=None,adjusted=False,save=
         return -1
     if outName is None and save:
         outName = filename[:-4]+".png"
-    return _genPath(xs,ys,zs,outName,False,adjusted, parallel)
+    return _genPath(xs,ys,zs,outName,adjusted, parallel)
 
-def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
+def _genPath(xs,ys,zs,name,adjusted=False, parallel=True):
     global pool
     """Displays the radargram for a path.
 
@@ -58,8 +60,6 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
     ys float array : Array of y coordinates of path.
     zs float array : Array of altitude/elevation above ground along path.
     name string : Name of file to save radargram as. Not saved if name is None.
-    isOffset bool (optional) : Whether the given z coordinates are altitude or relative to the ground.
-        Default is relative.
     adjusted bool (optional) : Shift the data for each point to align the response from the surface
         directly beneath the radar with the top of the plot.
 
@@ -82,7 +82,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
 
     p = mp.Pool(mp.cpu_count())
     # arguments needed by processors as global state not shared
-    data = [(x,y,z,i,isOffset,angle,wave,intensityModel,directional, env) for x,y,i,z,angle in
+    data = [(x,y,z,i,angle,wave,intensityModel,directional, env) for x,y,i,z,angle in
                             zip(xs,ys,np.arange(n),zs,direction)]
     try: # calculate output across multiple processors
         if parallel:
@@ -118,14 +118,13 @@ def _genPath(xs,ys,zs,name,isOffset=True,adjusted=False, parallel=True):
 def _worker(args):
     # can raise IOError when reading maps.hdf5 in generateMaps
     # or in pointData for pointX.hdf5
-    pointx,pointy,pointz,i,isOffset,angle,wave,intensityModel,directional,env = args
+    pointx,pointy,pointz,i,angle,wave,intensityModel,directional,env = args
 
     # New process so env may have been reset, updates to passed parameters.
     # This means pointData and radar both get the correct range/steps etc.
     parameters.setEnv(env)
     
-    _,_,dist,incidence,theta,phi,elevation = pointData.generateMaps(pointx,pointy,pointz,
-                                                                  isOffset,angle)
+    _,_,dist,incidence,theta,phi,_ = pointData.generateMaps(pointx,pointy,pointz,angle)
     ar = np.full((env.getSteps()),0,float)
     ar = radar.processSlice(dist,incidence,theta,phi,intensityModel, wave, directional=directional)
 

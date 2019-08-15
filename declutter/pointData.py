@@ -82,15 +82,14 @@ def _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDi
 
     return theta,phi
 
-def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None):
+def generateMaps(pointx,pointy,elevation=100.0,antennaDir=None):
     """Produces rasters for which points are visible, their distance and incidence angles to the radar,
     and optionally antenna orientation data.
     
     Parameters:
     pointx - float : x-coordinate of point.
     pointy - float : y-coordinate of point.
-    above_ground - float (optional) : Either actual altitude of radar or elevation above ground. Default = 100.0.
-    isOffset - bool (optional) : Indicates the given 'above_ground' is relative to the ground. Default = True.
+    elevation - float (optional) : Elevation of the radar, default = 100.0.
     antennaDir - float (optional) : The direction the radar was facing in degrees. By default, not used.    
 
     Returns
@@ -139,17 +138,11 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
     
     theta,phi = None, None
     
-    if np.isnan(groundHeight): # Assumes use of NaN for noData, can't use ==
+    if np.isnan(groundHeight): # Assumes use of NaN for noData, can't use ==.
         # not above mapped ground so don't generate anything, as if nothing visible
-        # TODO: replace returning above_ground as elevation with NaN then check for in other methods
         if antennaDir is not None:
             theta, phi = np.empty(0), np.empty(0)
-        return np.full(heightmap.shape,0,int),(cropLeft,cropLow), np.empty(0), np.empty(0), theta, phi, above_ground
-    
-    if isOffset:
-        elevation = groundHeight+above_ground
-    else:
-        elevation = above_ground
+        return np.full(heightmap.shape,0,int),(cropLeft,cropLow), np.empty(0), np.empty(0), theta, phi, elevation
     
     ys, xs = np.indices(heightmap.shape,float)
     xs = cropLeft + xs*_CellSize
@@ -167,7 +160,7 @@ def generateMaps(pointx,pointy,above_ground=100.0,isOffset=True,antennaDir=None)
 
     # actually visible cells
     vis = viewshed.viewshed(heightmap,(pointx-cropLeft)/_CellSize, (pointy-cropLow)/_CellSize,mask,
-                            elevation,False,gridsize=_CellSize) # return bool array
+                            elevation,gridsize=_CellSize) # return bool array
     
     if antennaDir is not None:
         theta, phi = _makeAntenna(vis,heightmap,elevation,trueDist,directions,distances,antennaDir)

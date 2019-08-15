@@ -35,26 +35,24 @@ def _makeDirections(xs,ys):
     return direction
 
 def workerCall(args):
-    # args = (x,y,z,isOffset,angle,save_visible,pathName, env)
+    # args = (x,y,z,angle,save_visible,pathName, env)
     parameters.setEnv(args[-1])
     vis,visCorner,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-3])
 
-    if args[5]: # save_visible
-        return pointData.store(args[6],dist,incidence,args[0],args[1],
-                           elevation, vis,visCorner, args[4], theta, phi)
+    if args[4]: # save_visible
+        return pointData.store(args[5],dist,incidence,args[0],args[1],
+                           elevation, vis,visCorner, args[3], theta, phi)
     else:
-        return pointData.store(args[6], dist,incidence,args[0],args[1],
-                           elevation, None,None, args[4], theta, phi)
+        return pointData.store(args[5], dist,incidence,args[0],args[1],
+                           elevation, None,None, args[3], theta, phi)
     
-def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True,parallel=True):
+def _genPath(xs,ys,zs,name,save_visible=True,parallel=True):
     global pool
     """Generates path data for the specified points, including antenna orientation data.
     Parameters:
     xs - float array : array of x coordinates of path.
     ys - float array : array of y coordinates of path.
     zs - float array : array of altitude/elevation above ground along path.
-    isOffset - bool (optional) : whether then given z coordinates are altitude or relative to the ground.
-        Default is relative.
     save_visible - bool (optional) : whether to save an array of which points are visible. Not needed
         to make a radargram but helpful for extra analysis. Default is True.
     parallel - bool (optional) : whether to process points across multiple processors. Default is True."""
@@ -62,7 +60,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True,parallel=True):
     direction = _makeDirections(xs,ys)
     steps = len(xs)
     pool = mp.Pool(mp.cpu_count())
-    data = [(x,y,z,isOffset,angle,save_visible,name+"/point"+str(i), parameters.env) for
+    data = [(x,y,z,angle,save_visible,name+"/point"+str(i), parameters.env) for
              x,y,z,angle,i in zip(xs,ys,zs,direction,np.arange(steps))]
     fail = False
     try:
@@ -79,7 +77,7 @@ def _genPath(xs,ys,zs,name,isOffset=True,save_visible=True,parallel=True):
     pool.close()
     return 0     
 
-def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True, parallel = True):
+def processData(filename,crop=[0,0],outName=None,style=None, offset = 0, save_visible=True, parallel = True):
     """Generates path data for the points in the given file.
 
     Parameters
@@ -89,6 +87,7 @@ def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True, 
         from the input filename.
     style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
         this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0.
     save_visible - bool (optional) : Whether or not the array of which points are visible and which aren't should
         be stored (significant proportion of the storage where only a few points are visible. Default is True.
     parallel - bool (optional) : whether to process points across multiple processors. Default is True.
@@ -98,6 +97,7 @@ def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True, 
     """
     try:
         xs, ys, zs = loadData(filename, crop, style)
+        zs -= offset
     except IOError:
         print "Could not load data from file : "+filename
         if style is not None:
@@ -107,7 +107,7 @@ def processData(filename,crop=[0,0],outName=None,style=None, save_visible=True, 
         return -1
     if outName is None:
         outName = filename[:-4]
-    return _genPath(xs,ys,zs,outName,False,save_visible, parallel)   
+    return _genPath(xs,ys,zs,outName,save_visible, parallel)   
 
 def loadData(filename, crop = [0,0], style = None):
     """Takes a file of points and returns three arrays of x-coordinate, y-coordinate, and elevation.
@@ -213,7 +213,7 @@ def gpsToXY(lons,lats):
         xs,ys = pyproj.transform(_gpsProj,_northProj,lons,lats)
     return xs,ys
 
-def showPath(filename,crop=[0,0],style=None):
+def showPath(filename,crop=[0,0],style=None, offset = 0):
     """Plots a given path in 3D.
 
     Parameters
@@ -221,12 +221,14 @@ def showPath(filename,crop=[0,0],style=None):
     crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
     style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
         this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0.
     """
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
 
     try:
         xs, ys, zs = loadData(filename, crop, style)
+        zs -= offset
     except IOError:
         print "Could not load data from file : "+filename
         return -1
@@ -241,7 +243,7 @@ def showPath(filename,crop=[0,0],style=None):
     plt.show()
     return 0
 
-def showAboveGround(filename,crop=[0,0],style=None):
+def showAboveGround(filename,crop=[0,0],style=None, offset = 0):
     """Uses 'maps.hdf5' to show the radar elevation relative to the ground directly beneath the radar along the path.
 
     Parameters
@@ -249,6 +251,7 @@ def showAboveGround(filename,crop=[0,0],style=None):
     crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
     style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
         this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0.
     """
     import matplotlib.pyplot as plt
     from matplotlib import cm
@@ -256,6 +259,7 @@ def showAboveGround(filename,crop=[0,0],style=None):
     
     try:
         xs, ys, zs = loadData(filename, crop, style)
+        zs -= offset
     except IOError:
         print "Could not load data from file : "+filename
         return -1
@@ -277,7 +281,7 @@ def showAboveGround(filename,crop=[0,0],style=None):
     return 0
     
 
-def showOnSurface(filename,crop=[0,0],extend=10,style=None):
+def showOnSurface(filename,crop=[0,0],extend=10,style=None, offset = 0):
     """Plots the radar path in 3D, using 'maps.hdf5' to plot the surrounding terrain for reference.
 
     Parameters
@@ -285,12 +289,14 @@ def showOnSurface(filename,crop=[0,0],extend=10,style=None):
     crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
     extend - int (optional) : How many cells extra to display around area covered by path.
     style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
-        this is determined by the file extension and assumed to be 'gpx' if that is unclear."""
+        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0."""
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
     try:
         xs, ys, zs = loadData(filename, crop, style)
+        zs -= offset
     except IOError:
         print "Could not load data from file : "+filename
         return -1

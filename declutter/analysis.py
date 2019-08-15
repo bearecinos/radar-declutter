@@ -180,6 +180,9 @@ def matchMap(grid, left, low, cropLeft, cropLow, w, h, cellSize):
 def markSurfaces(filename, start, end, alpha = 0.2):
     '''Indicate which surfaces cause a response within the given interval for the
     pointX.hdf file given.
+    Note: Time is taken as distance/1.5e8, ignoring any shift caused by the wave
+    used for convolution (see radar.showWave()). Therefore intervals less than
+    about 5e-7 may give unexpected results.
 
     Parameters
     filename - string : The pointX.hdf5 file to plot the response of.

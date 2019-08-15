@@ -334,6 +334,8 @@ def manyWiggle(name,adjusted=False,intensityModel=None,
 def showWave(wave=modelling.waves.GaussianDot()):
     """Plot the given wave over the time the radargram records for."""
     # Samples over whole window (plus slightly before)
+    plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
+    plt.figure(figsize=env.figsize)
     x = np.linspace(-env.getMaxTime()/10.0,env.getMaxTime(),env.getSteps()*2)
     y = wave.amplitude(x)
     plt.plot(x,y)
