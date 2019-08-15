@@ -15,6 +15,7 @@ def flyBy(dirname, above=False, stepsize=3):
     and the start indices of each group is also returned.
 
     Parameters
+    ----------
     dirname - string : Name of the directory containing pointX.hdf5 files for the path.
     above - bool (optional) : By default a surface must be above the radar to be
         considered part of the wall. Setting this means it must be at least 20m above.
@@ -185,6 +186,7 @@ def markSurfaces(filename, start, end, alpha = 0.2):
     about 5e-7 may give unexpected results.
 
     Parameters
+    ----------
     filename - string : The pointX.hdf5 file to plot the response of.
     start - float : The start of the time interval to consider.
     end - float : The end of the time interval to consider.
@@ -243,6 +245,7 @@ def drawMesh(x,y,distance,back=False,alpha=0.2):
     '''Plots a wireframe mesh of the surrounding surface.
 
     Parameters
+    ----------
     x,y - floats : Coordinates of point.
     distance - float : Range around the point to draw up to.
     back - bool (optional) : Whether this should create a new

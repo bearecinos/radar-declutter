@@ -10,20 +10,23 @@ import os
 from modelling import parameters
 
 def _makeDirections(xs,ys):
-    """Calculates the direction the antenna is facing at each point based on adjacent points.
+    """Calculates the direction the antenna is facing at each point based on
+    adjacent points.
 
     Parameters
+    ----------
     xs float array : The x-coordinates of the path.
     ys float array : The y-coordinates of the path.
 
     Returns
+    -------
     direction float array : The bearing of the antenna for each point.
 
     Fails if path is less than 2 points due to index errors."""
     direction = np.full_like(xs,0,float) # degrees
     # endpoints are handled separately
     direction[0] = 180.0/np.pi*(np.arctan2(xs[0]-xs[1], ys[0]-ys[1]))+180.0
-    direction[-1] = 180.0/np.pi*(np.arctan2(xs[-2]-xs[-1], ys[-2]-ys[-1]))+180.0
+    direction[-1] = 180.0/np.pi*(np.arctan2(xs[-2]-xs[-1],ys[-2]-ys[-1]))+180.0
     
     m = np.full_like(xs,True,bool)
     m[[0,-1]] = False
@@ -37,8 +40,8 @@ def _makeDirections(xs,ys):
 def workerCall(args):
     # args = (x,y,z,angle,save_visible,pathName, env)
     parameters.setEnv(args[-1])
-    vis,visCorner,dist,incidence,theta,phi,elevation = pointData.generateMaps(*args[:-3])
-
+    result = pointData.generateMaps(*args[:-3])
+    vis,visCorner,dist,incidence,theta,phi,elevation = result
     if args[4]: # save_visible
         return pointData.store(args[5],dist,incidence,args[0],args[1],
                            elevation, vis,visCorner, args[3], theta, phi)
@@ -48,14 +51,19 @@ def workerCall(args):
     
 def _genPath(xs,ys,zs,name,save_visible=True,parallel=True):
     global pool
-    """Generates path data for the specified points, including antenna orientation data.
-    Parameters:
+    """Generates path data for the specified points, including antenna
+    orientation data.
+    
+    Parameters
+    ----------
     xs - float array : array of x coordinates of path.
     ys - float array : array of y coordinates of path.
     zs - float array : array of altitude/elevation above ground along path.
-    save_visible - bool (optional) : whether to save an array of which points are visible. Not needed
-        to make a radargram but helpful for extra analysis. Default is True.
-    parallel - bool (optional) : whether to process points across multiple processors. Default is True."""
+    save_visible - bool (optional) : whether to save an array of which points
+        are visible. Not needed to make a radargram but helpful for extra
+        analysis. Default is True.
+    parallel - bool (optional) : whether to process points across multiple
+        processors. Default is True."""
     os.makedirs(name)
     direction = _makeDirections(xs,ys)
     steps = len(xs)
@@ -77,22 +85,30 @@ def _genPath(xs,ys,zs,name,save_visible=True,parallel=True):
     pool.close()
     return 0     
 
-def processData(filename,crop=[0,0],outName=None,style=None, offset = 0, save_visible=True, parallel = True):
+def processData(filename,crop=[0,0],outName=None,style=None, offset = 0,
+                save_visible=True, parallel = True):
     """Generates path data for the points in the given file.
 
     Parameters
+    ----------
     filename - string : The file to generate data for.
-    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
-    outName - string (optional) : The directory to save the generated data in. By default, this is taken
-        from the input filename.
-    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
-        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
-    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0.
-    save_visible - bool (optional) : Whether or not the array of which points are visible and which aren't should
-        be stored (significant proportion of the storage where only a few points are visible. Default is True.
-    parallel - bool (optional) : whether to process points across multiple processors. Default is True.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B
+        points of the input file.
+    outName - string (optional) : The directory to save the generated data in.
+        By default, this is taken from the input filename.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the
+        format of 'filename'. By default, this is determined by the file
+        extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from
+        helicopter rather than radar. Default 0.
+    save_visible - bool (optional) : Whether or not the array of which points
+        are visible and which aren't should be stored (significant proportion
+        of the storage where only a few points are visible. Default is True.
+    parallel - bool (optional) : whether to process points across
+        multiple processors. Default is True.
     
     Returns
+    -------
     0 if successful, otherwise -1.
     """
     try:
@@ -110,17 +126,23 @@ def processData(filename,crop=[0,0],outName=None,style=None, offset = 0, save_vi
     return _genPath(xs,ys,zs,outName,save_visible, parallel)   
 
 def loadData(filename, crop = [0,0], style = None):
-    """Takes a file of points and returns three arrays of x-coordinate, y-coordinate, and elevation.
+    """Takes a file of points and returns three arrays of x-coordinate,
+    y-coordinate, and elevation.
 
     Parameters
+    ----------
     filename - string : The file to generate data for.
-    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
-    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
-        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B
+        points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the
+        format of 'filename'. By default, this is determined by the file
+        extension and assumed to be 'gpx' if that is unclear.
 
     Returns
-    xs, ys - The x and y coordinates of the input points. If the input file had longitude and latitude coordinates,
-        these have been mapped to a UTM zone or UPS for coordinates near the poles.
+    -------
+    xs, ys - The x and y coordinates of the input points. If the input file
+        had longitude and latitude coordinates, these have been mapped to a
+        UTM zone or UPS for coordinates near the poles.
     zs - Elevation values taken directly from the file.
     """
     if style is None:
@@ -195,8 +217,8 @@ _southProj = pyproj.Proj("+proj=ups +south")
 _gpsProj = pyproj.Proj("+init=EPSG:4326") # wgs 84
 
 def gpsToXY(lons,lats):
-    """Converts an array of longitude and latitude coordinates to x,y coordinates
-    for the relevant UTM zone.
+    """Converts an array of longitude and latitude coordinates to
+    x,y coordinates for the relevant UTM zone.
     Although this will use UPS coordinates when outside the bounds of UTM zones,
     this has not been tested. In particular, elevation is unchanged. If UPS is
     ever needed, the output should be checked to see if elevation also needs
@@ -217,11 +239,15 @@ def showPath(filename,crop=[0,0],style=None, offset = 0):
     """Plots a given path in 3D.
 
     Parameters
+    ----------
     filename - string : The file to generate data for.
-    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
-    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
-        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
-    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B
+        points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the
+        format of 'filename'. By default, this is determined by the file
+        extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from
+        helicopter rather than radar. Default 0.
     """
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
@@ -244,14 +270,19 @@ def showPath(filename,crop=[0,0],style=None, offset = 0):
     return 0
 
 def showAboveGround(filename,crop=[0,0],style=None, offset = 0):
-    """Uses 'maps.hdf5' to show the radar elevation relative to the ground directly beneath the radar along the path.
+    """Uses 'maps.hdf5' to show the radar elevation relative to the
+    ground directly beneath the radar along the path.
 
     Parameters
+    ----------
     filename - string : The file to generate data for.
-    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
-    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
-        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
-    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0.
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B
+        points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the
+        format of 'filename'. By default, this is determined by the file
+        extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from
+        helicopter rather than radar. Default 0.
     """
     import matplotlib.pyplot as plt
     from matplotlib import cm
@@ -282,15 +313,21 @@ def showAboveGround(filename,crop=[0,0],style=None, offset = 0):
     
 
 def showOnSurface(filename,crop=[0,0],extend=10,style=None, offset = 0):
-    """Plots the radar path in 3D, using 'maps.hdf5' to plot the surrounding terrain for reference.
+    """Plots the radar path in 3D, using 'maps.hdf5' to plot the
+    surrounding terrain for reference.
 
     Parameters
+    ----------
     filename - string : The file to generate data for.
-    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
-    extend - int (optional) : How many cells extra to display around area covered by path.
-    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
-        this is determined by the file extension and assumed to be 'gpx' if that is unclear.
-    offset - float (optional) : Height to correct for when gps data from helicopter rather than radar. Default 0."""
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B
+        points of the input file.
+    extend - int (optional) : How many cells extra to display around area
+        covered by path.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating
+        the format of 'filename'. By default, this is determined by the file
+        extension and assumed to be 'gpx' if that is unclear.
+    offset - float (optional) : Height to correct for when gps data from
+        helicopter rather than radar. Default 0."""
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
@@ -328,10 +365,12 @@ def showOnSurface(filename,crop=[0,0],extend=10,style=None, offset = 0):
     X = left + X*cellSize
     Y = low + Y*cellSize
     
-    my_col = cm.terrain((heightmap-np.nanmin(heightmap))/(np.nanmax(heightmap)-np.nanmin(heightmap)))
+    my_col = cm.terrain((heightmap-np.nanmin(heightmap))
+                        /(np.nanmax(heightmap) -np.nanmin(heightmap)))
     fig = plt.figure()
     ax = Axes3D(fig)
-    ax.plot_surface(X,Y,heightmap,facecolors=my_col,linewidth=0,antialiased=False)
+    ax.plot_surface(X,Y,heightmap,facecolors=my_col,linewidth=0,
+                    antialiased=False)
     ax.plot(xs,ys,zs)
     plt.show()
     return 0
@@ -339,14 +378,18 @@ def showOnSurface(filename,crop=[0,0],extend=10,style=None, offset = 0):
 # Assumes NaN is undefined value, otherwise need to change equality test
 # (Can't use == for NaNs, need np.isnan(...) instead)
 def checkValid(filename,crop = [0,0],style="gpx"):
-    """Indicate if any of the map is undefined within 3km (current fixed range) of a point on the path.
-    Also highlights if the map is undefined directly beneath any points on the path.
+    """Indicates if any of the map is undefined within the range being
+    considered for each point, and if the map is undefined directly
+    beneath any points on the path.
 
     Parameters
+    ----------
     filename - string : The file to generate data for.
-    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B points of the input file.
-    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the format of 'filename'. By default,
-        this is determined by the file extension and assumed to be 'gpx' if that is unclear."""
+    crop - [int,int] (optional) : crop=[A,B] ignores the first A and last B
+        points of the input file.
+    style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the
+        format of 'filename'. By default, this is determined by the file
+        extension and assumed to be 'gpx' if that is unclear."""
     from modelling.parameters import env
     try:
         xs, ys, zs = loadData(filename, crop, style)
@@ -378,14 +421,17 @@ def checkValid(filename,crop = [0,0],style="gpx"):
         x,y  = xs[i], ys[i]
         
         m = ((X-x)**2+(Y-y)**2)<d**2 # points within range being considered
-        if np.any(np.isnan(heightmap[m])) or x<xBounds[0] or x>xBounds[1] or y<yBounds[0] or y>yBounds[1]:
+        if (np.any(np.isnan(heightmap[m])) or x<xBounds[0] or x>xBounds[1]
+            or y<yBounds[0] or y>yBounds[1]):
             notFullRange += 1
         # points used for interpolating ground height
         m = ((X-x)**2 <= cellSize**2) & ((Y-y)**2 <= cellSize**2)
         if np.any(np.isnan(heightmap[m])) or m.size < 4:
             undefinedGround += 1
             ar[i] = False
-    print "{0} of {1} points have part of range undefined.".format(notFullRange,len(xs))
-    print "{0} of {1} points are above an undefined part of the map.".format(undefinedGround,len(xs))
+    print ("{0} of {1} points have part of range undefined."
+           .format(notFullRange,len(xs)))
+    print ("{0} of {1} points are above an undefined part of the map."
+           .format(undefinedGround,len(xs)))
     return ar
     

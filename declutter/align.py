@@ -21,7 +21,8 @@ def minAlign(data, dx=1.875, cutoff=200.0):
     """Shifts the data for each point so the the first response for each
     point is at the start of the data.
 
-    Parameters:
+    Parameters
+    ----------
     data - 2D float array : The data to plot for each point.
     dx - float (optional) : The spatial distance between cells. Default 1.875m.
     cutoff - float (optional) : The distance at which to assume the surface

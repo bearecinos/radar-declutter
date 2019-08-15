@@ -10,7 +10,7 @@ def quadHeight(grid,x,y):
 
     Parameters
     grid - 2D float array : A heightmap of the surface.
-    x,y - float arrays :Indices of points on the grid. i.e. 1,2 refers to grid[2,1].
+    x,y - float arrays :Indices of points on the grid. i.e. 1,2 is grid[2,1].
     """
     res = np.full_like(x,_NODATA,float) 
     h,w = grid.shape
@@ -25,15 +25,17 @@ def quadHeight(grid,x,y):
     tx = dx*dx+(1-dx)*(1-dx)
     dy = y-cornery
     ty = dy*dy+(1-dy)*(1-dy)
-    a = (dx*dx*grid[cornery,cornerx+1] + (1-dx)*(1-dx)*grid[cornery,cornerx])/tx
-    b = (dx*dx*grid[cornery+1,cornerx+1] + (1-dx)*(1-dx)*grid[cornery+1,cornerx])/tx
+    a = (dx*dx*grid[cornery,cornerx+1] +
+         (1-dx)*(1-dx)*grid[cornery,cornerx])/tx
+    b = (dx*dx*grid[cornery+1,cornerx+1] +
+         (1-dx)*(1-dx)*grid[cornery+1,cornerx])/tx
     res[m] = (dy*dy*b + (1-dy)*(1-dy)*a)/ty
     return res
 
 def _visible(grid,startx,starty,x,y,elevation=100,stepSize=1.0):
     vis = np.full_like(x,True,bool)
     if len(x) == 0:
-        return vis # else get error when attempting to call np.amax on 0 length array
+        return vis # else get error calling np.amax on 0 length array
     endh = quadHeight(grid,x,y)
     vis[np.isnan(endh)] = False # won't be detected later as this will be NaN
     dx = x-startx
@@ -63,7 +65,7 @@ def _visible(grid,startx,starty,x,y,elevation=100,stepSize=1.0):
     return vis
 
 
-# assumes point actually inside grid (checked by call to quadheight to get groundHeight first in stateless.py)
+# assumes point inside grid (checked by call to quadheight in stateless.py)
 def viewshed(grid,pointx,pointy,mask,elevation=100,gridsize=30.0,stepSize=None):
     """Calculates which points on a grid are visible from a given viewpoint.
     If the ray from the viewpoint to a surface passes over a part of the grid where the height

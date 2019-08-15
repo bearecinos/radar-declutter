@@ -42,10 +42,12 @@ def resize(cellsize):
     corner is unchanged i.e. array[0,0].
     
     Parameters
+    ----------
     cellsize - float : The size of each new cell in metres. This must be
         a multiple of the original cell size.
 
     Returns
+    -------
     0 if successful. -1 otherwise (due to incorrect cell size)."""
     with h5py.File("maps.hdf5","r") as f:
         line = f["meta"][()] # min-x coord, min-y coord, cellSize

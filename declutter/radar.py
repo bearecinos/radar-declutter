@@ -63,21 +63,24 @@ def processSlice(distance,angle,theta,phi,intensityModel=None,
     """Models the response seen at a single point.
 
     Parameters
+    ----------
     distance - float array : the distance in metres to every visible point.
     angle - float array : the surface incidence angle (in radians) of every
         visible point.
     theta, phi - float arrays : the direction to each visible point in spherical
         coordinates, with the ends of the antenna being the poles. These can
         be None, in which case they are not considered.
-    intensityModel - function (optional) : a function of incidence angle for the
-        backscatter from a surface. 
-    wave - class instance (optional) : a model of the wave to convolve with the
-        response. 
-    rFactor - float (optional) : How intensity should fall with distance. 0 by default.
+    intensityModel - function (optional) : a function of incidence angle for
+        the backscatter from a surface. 
+    wave - class instance (optional) : a model of the wave to convolve with
+        the response. 
+    rFactor - float (optional) : How intensity should fall with distance.
+        0 by default.
     directional - function  (optional) : A function of theta and phi for the
         directivity of the antenna.
         
     Returns
+    -------
     convol - float array : A time series of the modelled response.
     """
     if intensityModel is None:
@@ -89,8 +92,8 @@ def processSlice(distance,angle,theta,phi,intensityModel=None,
 
         
     m = (distance < env.getMaxDist())
-    t = (_time(distance[m])/env.getDt()).astype(int) # indices into radargram timesteps
-
+    # indices into radargram timesteps
+    t = (_time(distance[m])/env.getDt()).astype(int)
     intensity = intensityModel(angle[m])
     intensity /= np.power(distance[m],rFactor)
     
@@ -112,27 +115,32 @@ def processSlice(distance,angle,theta,phi,intensityModel=None,
     return convol
 
 def radargram(name,adjusted=False,wave=None,save=None,intensityModel = None,
-            title=None,directional=None,display=True, clip = 0,rFactor = 0.0, parallel = True):
+            title=None,directional=None,display=True, clip = 0,
+              rFactor = 0.0, parallel = True):
     '''Plots the radargram for the points in the given directory once for each
     model given in the models list. Adjusted aligns the y-axis by elevation
-    rather than timing. The wave used by the model can also be changed and setting
-    "save" to a string means the plot will be saved to that location.
+    rather than timing. The wave used by the model can also be changed and
+    setting "save" to a string means the plot will be saved to that location.
 
     Parameters
+    ----------
     name - string : directory to look in for point data. Must contain no other
-                    files or directories.
-    adjusted - bool : The data for each point is shifted to align the response from
-                    the surface directly beneath the radar with the top of the plot.
+        files or directories.
+    adjusted - bool : The data for each point is shifted to align the response
+        from the surface directly beneath the radar with the top of the plot.
     wave - Wave instance : the wave to convolve over the response.
     save - string (optional) : the name of the file to save the radargram in.
-    intensityModel - function (optional) : Function of incidence angle to use for modelling the response.
+    intensityModel - function (optional) : Function of incidence angle to use
+        for modelling the response.
     title - string (optional) : Names to display above plot.
-    directional - function (optional) : A function for the directionality of the antenna
-        in terms of spherical coordinates from the ends of the antenna.
+    directional - function (optional) : A function for the directionality of
+        the antenna in terms of spherical coordinates from the ends of the
+        antenna.
     display - bool (optional) : Display the plot once draw. Default True.
     clip - float (optional) : Clip X percent from either extreme. Default 0.
 
     Returns
+    -------
     returnData - 2D float array : The generated radargram data.
     Returns -1 if the method fails.
     '''
@@ -157,12 +165,13 @@ def radargram(name,adjusted=False,wave=None,save=None,intensityModel = None,
     
     p = mp.Pool(mp.cpu_count())
     # data needed to run across several processors
-    data = [(i,name+"/"+files[i],wave,intensityModel,directional,env,rFactor) for i in range(len(files))]
+    data = [(i,name+"/"+files[i],wave,intensityModel,directional,env,rFactor)
+            for i in range(len(files))]
     try:
         if parallel:
             for i, ar in progress(p.imap_unordered(worker,data),len(files)):
                 returnData[i] = ar
-        else: # non-parallel option. Runs on same thread so get proper error reporting
+        else: # non-parallel option. One process so get proper error reporting
             for j in progress(range(len(files))):
                 i,ar = worker(data[j])
                 returnData[i] = ar
@@ -178,17 +187,22 @@ def radargram(name,adjusted=False,wave=None,save=None,intensityModel = None,
     ys = np.linspace(0, env.getMaxTime(), env.getSteps())
     
     if clip: # clip if set to non-zero
-        returnData = np.clip(returnData,np.percentile(returnData,clip),np.percentile(returnData,100-clip))
+        returnData = np.clip(returnData,np.percentile(returnData,clip),
+                             np.percentile(returnData,100-clip))
     
     plt.ylim(env.getMaxTime(), 0)
     draw = np.swapaxes(returnData,0,1)
   
-    plt.contourf(np.arange(len(files)), ys, draw, 100,norm=MidNorm(np.mean(draw)), cmap="Greys") 
-    # normalise data + other options for ways of plotting (may need to reverse draw array i.e. draw[::-1])
+    plt.contourf(np.arange(len(files)), ys, draw, 100,
+                 norm=MidNorm(np.mean(draw)), cmap="Greys") 
+    # normalise data + other options for ways of plotting
+    #(may need to reverse draw array i.e. draw[::-1])
     #draw = (draw-np.amin(draw))/(np.amax(draw)-np.amin(draw))
     #plt.imshow(draw,aspect="auto")
-    #plt.contourf(np.arange(len(files)), ys, draw, 100, cmap="Greys",norm=colors.PowerNorm(1.5))
-    #plt.pcolormesh(np.arange(len(files)), ys, draw,cmap="Greys") # alternative cmap is "RdBu_r" where +ve = red
+    #plt.contourf(np.arange(len(files)), ys, draw, 100, cmap="Greys",
+    #               norm=colors.PowerNorm(1.5))
+    #plt.pcolormesh(np.arange(len(files)), ys, draw,cmap="Greys")
+    # alternative cmap is "RdBu_r" where +ve = red
     if title is not None:
         plt.title(title)
     plt.colorbar()
@@ -204,8 +218,8 @@ def worker(args):
     global env
     i,name,wave,intensityModel,directional,env,rFactor = args
     distance,angle,theta,phi = loadArrays(name)
-    ar = processSlice(distance,angle,theta,phi,intensityModel,wave,directional=directional,
-                              rFactor = rFactor)
+    ar = processSlice(distance,angle,theta,phi,intensityModel,wave,
+                      directional=directional,rFactor = rFactor)
     return i, ar
 
 def wiggle(filename,intensityModel=None,
@@ -213,6 +227,7 @@ def wiggle(filename,intensityModel=None,
     """Calculates the response for a single point file.
 
     Parameters
+    ----------
     filename - string : Name of the file to generate the response for.
     intensityModel - function (optional) : a function of incidence angle for the
         backscatter from a surface. 
@@ -220,9 +235,11 @@ def wiggle(filename,intensityModel=None,
         response.
     directional - function (optional) : a function of spherical coordinates
         for radar directivity.
-    display - bool (optional) : Whether to plot and show the data or not. Default is True.
+    display - bool (optional) : Whether to plot and show the data or not.
+        Default is True.
 
     Returns
+    -------
     Time series of predicted response if successful, otherwise -1.
     """
 
@@ -239,7 +256,8 @@ def wiggle(filename,intensityModel=None,
     except IOError:
         return fileError(filename)
 
-    ys = processSlice(distance,angle,theta,phi,intensityModel,wave,directional = directional)
+    ys = processSlice(distance,angle,theta,phi,intensityModel,wave,
+                      directional = directional)
     # Clipping
     #ys = np.clip(ys,np.percentile(ys,1),np.percentile(ys,99))
     if display:
@@ -255,23 +273,28 @@ def manyWiggle(name,adjusted=False,intensityModel=None,
     '''Plots the response for the points in the given directory side by side.
 
     Parameters
+    ----------
     name - string : directory to look in for point data. Must contain no other
-                    files or directories.
-    adjusted - bool (optional) : the data is shifted for each point to align the response
-                    from the surface directly beneath the radar with the top of the plot.
+        files or directories.
+    adjusted - bool (optional) : the data is shifted for each point to align the
+        response from the surface directly beneath the radar with the top of
+        the plot.
     intensityModel - function (optional) : a function of incidence angle for the
         backscatter from a surface. 
     wave - class instance (optional) : a model of the wave to convolve with the
         response. 
-    rFactor - float (optional) : How intensity should fall with distance. 0 by default.
+    rFactor - float (optional) : How intensity should fall with distance. 0 by
+        default.
     directional - function  (optional) : A function of theta and phi for the
         directivity of the antenna.
-    compareTo - 2D float array (optional) : An array of data the same shape as generated
-        from the input file. This is plotted behind each estimated response.
+    compareTo - 2D float array (optional) : An array of data the same shape as
+        generated from the input file. This is plotted behind each estimated
+        response.
     
     Returns
-    The 2D array of predicted responses, or the normalised correlation coefficient if
-    compareTo was provided. If unsuccessful, returns -1.
+    -------
+    The 2D array of predicted responses, or the normalised correlation
+    coefficient if compareTo was provided. If unsuccessful, returns -1.
     '''
     if intensityModel is None:
         intensityModel = default.getIntensity()
@@ -298,7 +321,8 @@ def manyWiggle(name,adjusted=False,intensityModel=None,
         except IOError as e:
             print "Could not read h5py file : "+name+"/"+filename
             return -1
-        draw[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,rFactor,directional)  
+        draw[i] = processSlice(distance,angle,theta,phi,intensityModel,wave,
+                               rFactor,directional)  
 
     if adjusted:
         draw =  align.minAlign(draw, env.getDx(), 200.0)
@@ -316,7 +340,8 @@ def manyWiggle(name,adjusted=False,intensityModel=None,
         if compareTo is None:
             plt.fill_betweenx(ys,m*i,m*i+draw[i],where=(draw[i]>0),color='k')
         else:
-            plt.plot(compareTo[i]+m*i,ys,"r-",zorder=2,label="reference",alpha=0.3)
+            plt.plot(compareTo[i]+m*i,ys,"r-",zorder=2,label="reference",
+                     alpha=0.3)
             if i == 0:
                 plt.legend()
     plt.ylim(env.getMaxTime(),0)
@@ -340,7 +365,8 @@ def showWave(wave=modelling.waves.GaussianDot()):
     y = wave.amplitude(x)
     plt.plot(x,y)
     plt.plot([wave.offset,wave.offset],[np.amin(y),np.amax(y)])
-    plt.plot([wave.offset+env.getDt(),wave.offset+env.getDt()],[np.amin(y),np.amax(y)])
+    plt.plot([wave.offset+env.getDt(),wave.offset+env.getDt()],[np.amin(y),
+                                                                np.amax(y)])
     plt.show()
     return x,y
 
@@ -366,7 +392,8 @@ def showDirectivity(directional=modelling.directivity.broad, twoD = False):
     else:
         ax = fig.add_subplot(1,1,1, projection='3d')
         ax.plot([-0.5,0.5], [0,0], [0,0],linewidth=2.0)
-        ax.plot_surface(Z, X, Y, rstride=1, cstride=1,cmap=plt.get_cmap('jet'),antialiased=False,alpha=0.5) 
+        ax.plot_surface(Z, X, Y, rstride=1, cstride=1,cmap=plt.get_cmap('jet'),
+                        antialiased=False,alpha=0.5) 
     plt.show()
     
 def fileError(f):

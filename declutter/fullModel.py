@@ -20,6 +20,7 @@ def processData(filename,crop=[0,0],outName=None,style=None, offset = 0, adjuste
     """Takes a gps path and displays a radargram for that path.
 
     Parameters
+    ----------
     filename - string  : The name of the file to generate a radargram for.
     crop - [int, int] (optional) : crop = [A,B] ignores the first A and last B points of the path.
     outName - string (optional) : The name of the file to save the radargram in. By default, this is
@@ -33,6 +34,7 @@ def processData(filename,crop=[0,0],outName=None,style=None, offset = 0, adjuste
     save - bool (optional) : Default True. If True, the radargram output is saved automatically.
 
     Returns
+    -------
     The radargram output if successful, otherwise -1.
 
     """
@@ -56,15 +58,17 @@ def _genPath(xs,ys,zs,name,adjusted=False, parallel=True):
     """Displays the radargram for a path.
 
     Parameters
-    xs float array : Array of x coordinates of path.
-    ys float array : Array of y coordinates of path.
-    zs float array : Array of altitude/elevation above ground along path.
-    name string : Name of file to save radargram as. Not saved if name is None.
-    adjusted bool (optional) : Shift the data for each point to align the response from the surface
+    ----------
+    xs - float array : Array of x coordinates of path.
+    ys - float array : Array of y coordinates of path.
+    zs - float array : Array of altitude/elevation above ground along path.
+    name - string : Name of file to save radargram as. Not saved if name is None.
+    adjusted - bool (optional) : Shift the data for each point to align the response from the surface
         directly beneath the radar with the top of the plot.
 
     Returns
-    returnData 2D float array : The radargram output.
+    -------
+    returnData - 2D float array : The radargram output.
     Returns -1 if unsuccessful."""
     direction = path._makeDirections(xs,ys)
     n = len(xs)
