@@ -11,7 +11,8 @@ class Env:
     steps = 1600
     figsize = (12, 6.8)
     def __str__(self):
-        return "Settings: maxTime = "+str(self.dt*self.steps)+", dt = "+str(self.dt)+", steps = "+str(self.steps)
+        return "Settings: maxTime = {0}, dt = {1}, steps = {2}".format(
+            self.dt*self.steps, self.dt, self.steps)
     def getDt(self):
         return self.dt
     def getDx(self):
@@ -56,7 +57,8 @@ def setTimeStep(dt = 1.25e-8):
     
 def setSpaceStep(dx = 1.875):
     """Sets the distance between sample points in the radargram/wiggle plots.
-    This is in terms of the one-way path. Default is 1.875m. Maximum range unchanged."""
+    This is in terms of the one-way path. Default is 1.875m.
+    Maximum range unchanged."""
     setTimeStep(dx/1.5e8)
    
 def setMaxTime(t = 2e-5):

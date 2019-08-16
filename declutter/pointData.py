@@ -28,7 +28,7 @@ def Setup():
         left,low,_CellSize = f["meta"][()]
 
     # padding to avoid rounding cropping out cells
-    _cropSize = int(2.0 * _RANGE / _CellSize) + 10
+    _cropSize = int(2.0 * _RANGE / _CellSize) + 4
     _SetupRun = True
     return 0
 

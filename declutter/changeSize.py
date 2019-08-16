@@ -5,18 +5,17 @@ import path
 import numpy as np
 from version import version
 
-# take path, generate bounds as min/max x and y then push out by param.env.maxDist
-# can only crop after projecting
-# do in arcpy (changes values?) or numpy
-# No way to remove data from array, just removes name, hence overwrite whole file
 def pathCrop(pathName, crop = [0,0]):
-    '''Removes areas of the arrays which are not needed to process the given path.
-    crop = [A,B] also avoids considering the first A and last B points of the path.'''
-    parameters.loadParameters()
+    '''Removes areas of the arrays which are not needed to process the given
+    path. crop = [A,B] also avoids considering the first A and last B points
+    of the path. Leaves 2 extra cell-widths padding to avoid boundary/rounding
+    issues later.'''
     d = parameters.env.getMaxDist()
     xs,ys,_ = path.loadData(pathName,crop)
     with h5py.File("maps.hdf5","r") as f:
         xmin,ymin,cellsize = f["meta"][()]
+        d += 2*cellsize
+        print "Cropping to a range of {0}m from path.".format(d)
         hmap = f["heightmap"][()]
         height,width = hmap.shape
 
