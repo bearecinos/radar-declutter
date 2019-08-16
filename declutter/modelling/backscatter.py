@@ -4,24 +4,38 @@ import numpy as np
 # should work with numpy arrays
 # have to use def rather than lambdas in order to pass with multiprocessing
 
+
 def lambertian(theta):
     return np.cos(theta)
 
-def Minnaert(theta,k): 
-    return np.power(np.cos(theta),2*k-1)
-def Min2(theta):
-    return Minnaert(theta,2)
 
-def raySpecular(theta,n=1):
-    return np.power(np.maximum(0,np.cos(theta*2)),n)
+def Minnaert(theta, k):
+    return np.power(np.cos(theta), 2*k-1)
+
+
+def Min2(theta):
+    return Minnaert(theta, 2)
+
+
+def raySpecular(theta, n=1):
+    return np.power(np.maximum(0, np.cos(theta*2)), n)
+
+
 def rayModel(theta):
-    return np.maximum(0,np.cos(theta*2))
+    return np.maximum(0, np.cos(theta*2))
+
+
 def ray2Model(theta):
-    return np.power(np.maximum(0,np.cos(theta*2)),2)
+    return np.power(np.maximum(0, np.cos(theta*2)), 2)
+
 
 def specular2(theta):
-    return np.power(np.cos(theta),2)
+    return np.power(np.cos(theta), 2)
+
+
 def specular6(theta):
-    return np.power(np.cos(theta),6)
+    return np.power(np.cos(theta), 6)
+
+
 def IDL(theta):
-    return np.power(np.cos(theta),8)
+    return np.power(np.cos(theta), 8)

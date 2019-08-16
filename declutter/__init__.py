@@ -12,8 +12,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # modules to make visible with import *
-__all__ = ["changeSize","radar","path","pointData","makeArrays",
-           "modelling", "analysis", "compare", "fullModel"]  
+__all__ = ["changeSize", "radar", "path", "pointData", "makeArrays",
+           "modelling", "analysis", "compare", "fullModel"]
 
 # runs whenever any part of package is run.
 try:
@@ -26,5 +26,3 @@ except ImportError:
     except ImportError:
         print "arcpy not available, cannot use makeArrays.py."
         __all__.remove("makeArrays")
-
-  

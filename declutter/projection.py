@@ -11,7 +11,8 @@ import pyproj
 import os
 from errors import RasterError
 
-def determineSystem(lat,lon):
+
+def determineSystem(lat, lon):
     """Returns a string arcpy recognises as a spatial reference.
     This wil be for the UTM zone of the provided coordinates, or a
     UPS system if outside the bounds of UTM zones."""
@@ -19,7 +20,7 @@ def determineSystem(lat,lon):
         return north
     if lat < -79.5:
         return south
-    _,_,num,_ = utm.from_latlon(lat,lon)
+    _, _, num, _ = utm.from_latlon(lat, lon)
     if lat > 0:
         let = "N"
     else:
@@ -28,12 +29,14 @@ def determineSystem(lat,lon):
 
 north = 'Projected Coordinate Systems/Polar/UPS North'
 south = 'Projected Coordinate Systems/Polar/UPS South'
-prefix = 'Projected Coordinate Systems/UTM/WGS 1984/Northern Hemisphere/WGS 1984 UTM Zone '
+prefix = ('Projected Coordinate Systems/UTM/WGS 1984/Northern Hemisphere/'
+          'WGS 1984 UTM Zone ')
 
-def project(source, systemName, saveAs = "projected"):
+
+def project(source, systemName, saveAs="projected"):
     """Converts the input raster to the given coordinate system. Note that this
-    operation is attempted even if the input raster is already in that coordinate
-    system.
+    operation is attempted even if the input raster is already in that
+    coordinate system.
 
     Parameters:
     source - string/Raster : The name/instance of the raster to project.
@@ -42,7 +45,7 @@ def project(source, systemName, saveAs = "projected"):
         the corresponding spatial reference object.
     saveAs - string (optional) : The name to save the projected raster as.
         This will be 'projected' by default.
-        
+
     Returns
     The projected arcpy raster.
     Raises RasterError if the projection cannot be performed. This is usually
@@ -56,9 +59,9 @@ def project(source, systemName, saveAs = "projected"):
     arcpy.env.workspace = os.getcwd()
     arcpy.env.overwriteOutput = True
     try:
-        arcpy.ProjectRaster_management(source,saveAs,sr,"CUBIC")
+        arcpy.ProjectRaster_management(source, saveAs, sr, "CUBIC")
     except arcpy.ExecuteError as e:
         if "attempted on an empty geometry" in e.message:
-            raise RasterError("arcpy error while projecting, check input latitude and longitude.")
+            raise RasterError("arcpy error while projecting, check input "
+                              "latitude and longitude.")
     return arcpy.Raster(saveAs)
-
