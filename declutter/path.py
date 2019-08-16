@@ -312,7 +312,7 @@ def showAboveGround(filename,crop=[0,0],style=None, offset = 0):
     return 0
     
 
-def showOnSurface(filename,crop=[0,0],extend=10,style=None, offset = 0):
+def showOnSurface(filename,crop=[0,0], extend=10, style=None, offset = 0):
     """Plots the radar path in 3D, using 'maps.hdf5' to plot the
     surrounding terrain for reference.
 
@@ -377,7 +377,7 @@ def showOnSurface(filename,crop=[0,0],extend=10,style=None, offset = 0):
 
 # Assumes NaN is undefined value, otherwise need to change equality test
 # (Can't use == for NaNs, need np.isnan(...) instead)
-def checkValid(filename,crop = [0,0],style="gpx"):
+def checkValid(filename, crop = [0,0], style=None):
     """Indicates if any of the map is undefined within the range being
     considered for each point, and if the map is undefined directly
     beneath any points on the path.

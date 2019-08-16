@@ -3,7 +3,9 @@ the radargram/wiggle plots seen. Also contains a range of methods to allow
 the model to be altered, such as the backscatter model or the wave to convolve
 with the result.
 Takes all default options from modelling.defaults if not passed to methods.
-Also single plot rather than 'compare' for radargrams."""
+Also single plot rather than 'compare' for radargrams.
+In all cases where the wave, backscatter or directivity model may be None,
+the default options are taken from the modelling.defaults module."""
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -132,7 +134,7 @@ def radargram(name,adjusted=False,wave=None,save=None,intensityModel = None,
     save - string (optional) : the name of the file to save the radargram in.
     intensityModel - function (optional) : Function of incidence angle to use
         for modelling the response.
-    title - string (optional) : Names to display above plot.
+    title - string (optional) : String to display above plot.
     directional - function (optional) : A function for the directionality of
         the antenna in terms of spherical coordinates from the ends of the
         antenna.
@@ -356,8 +358,11 @@ def manyWiggle(name,adjusted=False,intensityModel=None,
     b = compareTo.reshape(-1)
     return np.corrcoef(a,b)[0,1] # correlation between actual and comparison data
     
-def showWave(wave=modelling.waves.GaussianDot()):
-    """Plot the given wave over the time the radargram records for."""
+def showWave(wave = None):
+    """Plot the given wave over the time the radargram records for. If not
+    given, the wave set in defaults.py is used."""
+    if wave is None:
+        wave = default.getWave()
     # Samples over whole window (plus slightly before)
     plt.rcParams['axes.formatter.limits'] = [-4,4] # use standard form
     plt.figure(figsize=env.figsize)
@@ -370,11 +375,14 @@ def showWave(wave=modelling.waves.GaussianDot()):
     plt.show()
     return x,y
 
-def showDirectivity(directional=modelling.directivity.broad, twoD = False):
+def showDirectivity(directional = None, twoD = False):
     """Creates a spherical plot of the directivity of the antenna.
+    If no model is given, the model set in defaults.py is used.
     Setting twoD causes the model to ignore phi, the azimuth angle.
     Radius is proportional to intensity received in that direction."""
     import mpl_toolkits.mplot3d.axes3d as axes3d
+    if directional is None:
+        directional = default.getDirectivity()
     if twoD:
         theta, phi = np.linspace(0, 2 * np.pi, 361), 0
     else:
@@ -394,6 +402,21 @@ def showDirectivity(directional=modelling.directivity.broad, twoD = False):
         ax.plot([-0.5,0.5], [0,0], [0,0],linewidth=2.0)
         ax.plot_surface(Z, X, Y, rstride=1, cstride=1,cmap=plt.get_cmap('jet'),
                         antialiased=False,alpha=0.5) 
+    plt.show()
+
+def showBackscatter(intensityModel = None):
+    """Plots the backscatter at different incidence angles for a particular
+    model. The radius is proportional to the backscattered intensity for
+    an incident ray from that direction."""
+    if intensityModel is None:
+        intensityModel = default.getIntensity()
+    theta = np.linspace(0, np.pi, 181)
+    incidence = abs(theta - np.pi/2)
+    r = intensityModel(incidence)
+    x = r*np.cos(theta)
+    y = r*np.sin(theta)
+    plt.plot(x,y)
+    plt.plot([-1,1],[0,0])
     plt.show()
     
 def fileError(f):

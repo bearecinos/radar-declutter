@@ -19,9 +19,9 @@ def rayModel(theta):
 def ray2Model(theta):
     return np.power(np.maximum(0,np.cos(theta*2)),2)
 
-def specular2Model(theta):
+def specular2(theta):
     return np.power(np.cos(theta),2)
-def specular6Model(theta):
+def specular6(theta):
     return np.power(np.cos(theta),6)
-def IDLModel(theta):
+def IDL(theta):
     return np.power(np.cos(theta),8)

@@ -28,10 +28,13 @@ def pathCrop(pathName, crop = [0,0]):
         aspect = f["aspect"][yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]]
         
     with h5py.File("maps.hdf5","w") as f:
-        f.create_dataset("heightmap",compression="gzip",data = hmap[yBounds[0]:yBounds[1],xBounds[0]:xBounds[1]])
+        f.create_dataset("heightmap",compression="gzip",
+                         data = hmap[yBounds[0]:yBounds[1],
+                                     xBounds[0]:xBounds[1]])
         f.create_dataset("slope",compression="gzip",data = slope)
         f.create_dataset("aspect",compression="gzip",data = aspect)
-        f["meta"] = np.array([xmin+xBounds[0]*cellsize, ymin+yBounds[0]*cellsize,cellsize])
+        f["meta"] = np.array([xmin+xBounds[0]*cellsize,
+                              ymin+yBounds[0]*cellsize,cellsize])
         f["version"] = version
     return 0
 
@@ -52,9 +55,11 @@ def resize(cellsize):
         line = f["meta"][()] # min-x coord, min-y coord, cellSize
         originalSize = line[-1]
         if cellsize % originalSize != 0: # not a multiple
-            print "Please use a multiple of the original size: "+str(originalSize)
+            print "Please use a multiple of the original size: {0}".format(
+                originalSize)
             return -1
-        print "Changing from cell size of "+str(originalSize)+" to "+str(cellsize)
+        print "Changing from cell size of {0} to {1}".format(orginalSize,
+                                                             cellsize)
         factor = int(cellsize/originalSize)
         
         heightmap = f["heightmap"][::factor,::factor]
