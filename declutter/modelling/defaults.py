@@ -10,9 +10,9 @@ pieces of information are stored.
 Having a class with methods to return the set option allows modules to use
 None as the default and then load the chosen one from a central location.'''
 
-import waves
-import backscatter
-import directivity
+from declutter.modelling import waves
+from declutter.modelling import backscatter
+from declutter.modelling import directivity
 
 
 class Defaults:

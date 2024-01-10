@@ -3,11 +3,11 @@ from a single point.'''
 import math
 import numpy as np
 import os
-import viewshed
-from time import clock
+import declutter.viewshed as viewshed
+#from time import clock
 import h5py
-from modelling import parameters
-from version import version
+from declutter.modelling import parameters
+from declutter.version import version
 
 __all__ = ["Setup", "generateMaps"]
 
@@ -27,6 +27,7 @@ def Setup():
         _fullSlope = f["slope"][()]
         _fullAspect = f["aspect"][()]
         left, low, _CellSize = f["meta"][()]
+        f.close()
 
     # padding to avoid rounding cropping out cells
     _cropSize = int(2.0 * _RANGE / _CellSize) + 4
@@ -138,17 +139,17 @@ def generateMaps(pointx, pointy, elevation=100.0, antennaDir=None):
     pointCoords = [int((pointx-left)/_CellSize), int((pointy-low)/_CellSize)]
 
     height, width = _fullHeightmap.shape
-    lower = max(0, pointCoords[1]-_cropSize/2)
-    upper = min(height, pointCoords[1]+_cropSize/2)
-    l = max(0, pointCoords[0]-_cropSize/2)
-    r = min(width, pointCoords[0]+_cropSize/2)
+    lower = max(0, pointCoords[1] - _cropSize/2)
+    upper = min(height, pointCoords[1] + _cropSize/2)
+    l = max(0, pointCoords[0] - _cropSize/2)
+    r = min(width, pointCoords[0] + _cropSize/2)
 
     cropLeft = left + l*_CellSize
     cropLow = low + lower*_CellSize
 
-    heightmap = _fullHeightmap[lower:upper, l:r]
-    slope = _fullSlope[lower:upper, l:r]
-    aspect = _fullAspect[lower:upper, l:r]
+    heightmap = _fullHeightmap[int(lower):int(upper), int(l):int(r)]
+    slope = _fullSlope[int(lower):int(upper), int(l):int(r)]
+    aspect = _fullAspect[int(lower):int(upper), int(l):int(r)]
     cropHeight, cropWidth = heightmap.shape
 
     pointCoords = np.array([(pointx-cropLeft)/_CellSize,
@@ -236,7 +237,8 @@ def store(path, dist, incidence, x, y, elevation, vis=None, visCorner=None,
                 f.create_dataset("antennaPhi", compression="gzip", data=phi)
             f["meta"] = np.array([x, y, elevation, antennaDir])
             f["version"] = version
+            f.close()
     except IOError as e:
-        print "Could not write to hdf5 file : "+e.message
+        print("Could not write to hdf5 file : " + e.message)
         return -1
     return 0

@@ -1,9 +1,9 @@
 """Provides methods for reducing the size of the maps.hdf5 file."""
 import h5py
-from modelling import parameters
-import path
+from declutter.modelling import parameters
+from declutter import path
 import numpy as np
-from version import version
+from declutter.version import version
 
 
 def pathCrop(pathName, crop=[0, 0]):
@@ -16,7 +16,7 @@ def pathCrop(pathName, crop=[0, 0]):
     with h5py.File("maps.hdf5", "r") as f:
         xmin, ymin, cellsize = f["meta"][()]
         d += 2*cellsize
-        print "Cropping to a range of {0}m from path.".format(d)
+        print("Cropping to a range of {0}m from path.".format(d))
         hmap = f["heightmap"][()]
         height, width = hmap.shape
 
@@ -27,6 +27,7 @@ def pathCrop(pathName, crop=[0, 0]):
                    min(height, int((np.amax(ys)+d-ymin)/cellsize)+1)]
         slope = f["slope"][yBounds[0]:yBounds[1], xBounds[0]:xBounds[1]]
         aspect = f["aspect"][yBounds[0]:yBounds[1], xBounds[0]:xBounds[1]]
+        f.close()
 
     with h5py.File("maps.hdf5", "w") as f:
         f.create_dataset("heightmap", compression="gzip",
@@ -37,6 +38,7 @@ def pathCrop(pathName, crop=[0, 0]):
         f["meta"] = np.array([xmin+xBounds[0]*cellsize,
                               ymin+yBounds[0]*cellsize, cellsize])
         f["version"] = version
+        f.close()
     return 0
 
 
@@ -56,17 +58,17 @@ def resize(cellsize):
         line = f["meta"][()]  # min-x coord, min-y coord, cellSize
         originalSize = line[-1]
         if cellsize % originalSize != 0:  # not a multiple
-            print "Please use a multiple of the original size: {0}".format(
-                originalSize)
+            print("Please use a multiple of the original size: {0}".format(
+                originalSize))
             return -1
-        print "Changing from cell size of {0} to {1}".format(orginalSize,
-                                                             cellsize)
+        print("Changing from cell size of {0} to {1}".format(originalSize,
+                                                             cellsize))
         factor = int(cellsize/originalSize)
 
         heightmap = f["heightmap"][::factor, ::factor]
         aspect = f["aspect"][::factor, ::factor]
         slope = f["slope"][::factor, ::factor]
-
+        f.close()
         # update metaData with new cell size
         line[-1] = cellsize
 
@@ -76,4 +78,5 @@ def resize(cellsize):
         f.create_dataset("aspect", compression="gzip", data=aspect)
         f["meta"] = line
         f["version"] = version
+        f.close()
     return 0

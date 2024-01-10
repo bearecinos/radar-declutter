@@ -2,7 +2,7 @@
 the radargram/wiggle plots seen. Also contains a range of methods to allow
 the model to be altered, such as the backscatter model or the wave to convolve
 with the result.
-Takes all default options from modelling.defaults if not passed to methods.
+Takes all default options from declutter.modelling.defaults if not passed to methods.
 Also single plot rather than 'compare' for radargrams.
 In all cases where the wave, backscatter or directivity model may be None,
 the default options are taken from the modelling.defaults module."""
@@ -13,11 +13,11 @@ import os
 from scipy import signal
 import multiprocessing as mp
 import threading
-from progress import progress
+from declutter.progress import progress
 import h5py
-import align
-import modelling
-from modelling.defaults import default
+from declutter import align
+from declutter import modelling
+from declutter.modelling.defaults import default
 
 env = modelling.parameters.env
 
@@ -60,6 +60,7 @@ def loadArrays(filename):
         if "antennaTheta" in f:
             theta = f["antennaTheta"][()]
             phi = f["antennaPhi"][()]
+        f.close()
     return distance, angle, theta, phi
 
 
@@ -156,7 +157,7 @@ def radargram(name, adjusted=False, wave=None, save=None, intensityModel=None,
     if directional is None:
         directional = default.getDirectivity()
 
-    print env
+    print(env)
     plt.rcParams['axes.formatter.limits'] = [-4, 4]  # use standard form
     plt.figure(figsize=env.figsize)
     try:
@@ -181,7 +182,7 @@ def radargram(name, adjusted=False, wave=None, save=None, intensityModel=None,
                 returnData[i] = ar
     except IOError as e:
         p.close()
-        print "\nError reading hdf5 file :\n"+e.message
+        print("\nError reading hdf5 file :\n" + e.message)
         return -1
     p.close()
 
@@ -212,7 +213,7 @@ def radargram(name, adjusted=False, wave=None, save=None, intensityModel=None,
     plt.colorbar()
 
     if save is not None:
-        print "saving"
+        print("saving")
         plt.savefig(save)
     if display:
         plt.show()
@@ -309,7 +310,7 @@ def manyWiggle(name, adjusted=False, intensityModel=None,
     if directional is None:
         directional = default.getDirectivity()
 
-    print env
+    print(env)
     plt.rcParams['axes.formatter.limits'] = [-4, 4]  # use standard form
     plt.figure(figsize=env.figsize)
     try:
@@ -323,9 +324,9 @@ def manyWiggle(name, adjusted=False, intensityModel=None,
     for i in range(len(files)):
         filename = files[i]
         try:
-            distance, angle, theta, phi = loadArrays(name+"/"+filename)
+            distance, angle, theta, phi = loadArrays(name+"/" + filename)
         except IOError as e:
-            print "Could not read h5py file : "+name+"/"+filename
+            print("Could not read h5py file : "+name+"/" + filename)
             return -1
         draw[i] = processSlice(distance, angle, theta, phi, intensityModel,
                                wave, rFactor, directional)
@@ -431,6 +432,6 @@ def showBackscatter(intensityModel=None):
 
 
 def fileError(f):
-    print "Error in models.py, could not read file/directory: "+f
-    print "Please check path/filename entered correctly and data exists"
+    print("Error in models.py, could not read file/directory: "+f)
+    print("Please check path/filename entered correctly and data exists")
     return -1

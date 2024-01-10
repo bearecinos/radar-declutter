@@ -9,15 +9,15 @@ def load(args):
     """Converts a raster to numpy format in maps.hdf5, projecting and resampling
     if needed.
     Returns 0 if successful, else -1."""
-    print "Loading..."
-    import makeArrays
+    print("Loading...")
+    from declutter import makeArrays
     return makeArrays.makeAll(args.filename, args.latitude, args.longitude,
                               args.cellSize, args.out)
 
 
 def crop(args):
     """Crop maps.hdf5 to the area of interest for a certain path."""
-    import changeSize
+    from declutter import changeSize
     return changeSize.pathCrop(args.filename, crop=[args.start, args.end])
 
 
@@ -26,14 +26,14 @@ def model(args):
     be saved to make displaying the result faster if run several times, say to
     test variations on the model.
     Returns 0 if successful, else -1."""
-    import fullModel
-    import path
-    import radar
-    from modelling import parameters
+    from declutter import fullModel
+    from declutter import path
+    from declutter import radar
+    from declutter.modelling import parameters
 
     # arguments don't make sense
     if (args.out is not None or args.view) and not args.files:
-        print """Must also set (-f/--files) to enable storing files."""
+        print("Must also set (-f/--files) to enable storing files.")
         return -1
     if not args.files:  # no intermediate files
         return fullModel.processData(args.filename, [args.start, args.end],
@@ -46,7 +46,7 @@ def model(args):
                 args.out = args.filename
         if path.processData(args.filename, [args.start, args.end], args.out,
                             args.type, save_visible=args.view):
-            print "Could not generate point data files."
+            print("Could not generate point data files.")
             return -1
         if args.no and args.save is None:  # set name to save radargram as
             if "." in args.filename[-4:]:
@@ -59,7 +59,7 @@ def model(args):
 def display(args):
     """Produces a radargram from existing intermediate data.
     Returns the radargram output if successful, else -1."""
-    import radar
+    from declutter import radar
     if args.no and args.save is None:
         args.save = args.directory + ".png"
     return radar.radargram(args.directory, args.adjusted, save=args.save)
@@ -68,9 +68,8 @@ def display(args):
 def setParams(args):
     """Overwrites any existing parameters stored, which will revert to their
     default values if not fixed by the arguments passed."""
-    import numpy as np
     import os
-    from modelling import parameters
+    from declutter.modelling import parameters
 
     # asking to print settings and set new ones at the same time
     if args.show and (args.maxdist is not None or args.maxtime is not None or
@@ -80,7 +79,7 @@ def setParams(args):
                " Do not use --show with other options.")
         return -1
     elif args.show:  # print settings
-        print parameters.env
+        print(parameters.env)
         return 0
     if (args.steps is not None and
        (args.maxdist is not None or args.maxtime is not None) and

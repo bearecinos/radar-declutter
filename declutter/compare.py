@@ -8,13 +8,13 @@ import os
 from scipy import signal
 import multiprocessing as mp
 import threading
-from progress import progress
+from declutter.progress import progress
 import h5py
-import align
-import modelling
-from modelling.defaults import default
-from modelling import waves, backscatter, directivity
-import radar
+from declutter import align, modelling
+from declutter import radar
+from declutter.modelling.defaults import default
+from declutter.modelling import waves, backscatter, directivity
+from declutter.radar import fileError
 
 env = modelling.parameters.env
 
@@ -47,7 +47,7 @@ def compareWaves(name, adjusted=False, intensityModel=None, directional=None,
     if directional is None:
         directional = default.getDirectivity()
 
-    print env
+    print(env)
     plt.rcParams['axes.formatter.limits'] = [-4, 4]  # use standard form
     plt.figure(figsize=env.figsize)
     files = _getFiles(name)
@@ -71,7 +71,7 @@ def compareDirectivity(name, adjusted=False, intensityModel=None, wave=None,
     if wave is None:
         wave = default.getWave()
 
-    print env
+    print(env)
     plt.rcParams['axes.formatter.limits'] = [-4, 4]  # use standard form
     plt.figure(figsize=env.figsize)
     files = _getFiles(name)
@@ -95,7 +95,7 @@ def compareBackscatter(name, adjusted=False, wave=None, directional=None,
     if wave is None:
         wave = default.getWave()
 
-    print env
+    print(env)
     plt.rcParams['axes.formatter.limits'] = [-4, 4]  # use standard form
     plt.figure(figsize=env.figsize)
     files = _getFiles(name)
@@ -134,7 +134,7 @@ def _radargram(name, files, adjusted=False, wave=None, intensityModel=None,
                 returnData[i] = ar
     except IOError as e:
         p.close()
-        print "\nError reading hdf5 file :\n"+e.message
+        print("\n Error reading hdf5 file :\n "+e.message)
         return -1
     p.close()
 

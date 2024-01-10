@@ -1,5 +1,5 @@
-import pointData
-from progress import progress
+from declutter import pointData
+from declutter.progress import progress
 import numpy as np
 import xml.etree.cElementTree as ET
 import utm
@@ -7,7 +7,7 @@ import pyproj
 import multiprocessing as mp
 import h5py
 import os
-from modelling import parameters
+from declutter.modelling import parameters
 
 
 def _makeDirections(xs, ys):
@@ -84,9 +84,9 @@ def _genPath(xs, ys, zs, name, save_visible=True, parallel=True):
         else:  # serial provides full error reporting
             for i in progress(range(steps)):
                 result = workerCall(data[i])
-    except IOError:
+    except IOError as e:
         pool.close()
-        print "\nError reading 'maps.hdf5' :\n" + e.message
+        print("\nError reading 'maps.hdf5' :\n" + e.message)
         return -1
     pool.close()
     return 0
@@ -122,9 +122,9 @@ def processData(filename, crop=[0, 0], outName=None, style=None, offset=0,
         xs, ys, zs = loadData(filename, crop, style)
         zs -= offset
     except IOError:
-        print "Could not load data from file : "+filename
+        print("Could not load data from file : "+filename)
         if style is not None:
-            print "Is "+style+" the correct format?"
+            print("Is "+style+" the correct format?")
         return -1
     if len(xs) == 0:
         return -1
@@ -133,7 +133,7 @@ def processData(filename, crop=[0, 0], outName=None, style=None, offset=0,
     return _genPath(xs, ys, zs, outName, save_visible, parallel)
 
 
-def loadData(filename, crop=[0, 0], style=None):
+def loadData(filename, crop=[0, 0], outName=None, style=None):
     """Takes a file of points and returns three arrays of x-coordinate,
     y-coordinate, and elevation.
 
@@ -161,7 +161,7 @@ def loadData(filename, crop=[0, 0], style=None):
         else:
             style = "gpx"
     if style == "gpx":
-        lons, lats, zs, outName = _loadGpx(filename, crop)
+        lons, lats, zs, outName = _loadGpx(filename, crop, outName)
         xs, ys = gpsToXY(lons, lats)
     elif style == "dst":
         lons, lats, zs = _loadDst(filename, crop)
@@ -170,12 +170,12 @@ def loadData(filename, crop=[0, 0], style=None):
         try:
             data = np.loadtxt(filename)
         except ValueError as e:
-            print "Could not read as xyz file: " + e.message
+            print("Could not read as xyz file: " + e.message)
             raise IOError("Could not read file: "+filename)
         n = len(data)
         xs, ys, zs = data[crop[0]:n-crop[1]].swapaxes(0, 1)
     else:
-        print "Format not recognised. should be 'gpx', 'dst' or 'xyz'"
+        print("Format not recognised. should be 'gpx', 'dst' or 'xyz'")
         xs, ys, zs = np.array([[], [], []])
     return xs, ys, zs
 
@@ -210,7 +210,7 @@ def _loadDst(filename, crop=[0, 0], noData=0.0):
     try:
         data = np.loadtxt(filename)
     except ValueError as e:
-        print "Could not read as dst file: " + e.message
+        print("Could not read as dst file: " + e.message)
         raise IOError("Could not read file: "+filename)
     n = len(data)
     data = data[crop[0]:n-crop[1]].swapaxes(0, 1)
@@ -236,12 +236,12 @@ def gpsToXY(lons, lats):
     if -79.5 <= lats[0] and lats[0] <= 83.5:
         xs, ys, zoneNum, zoneLet = utm.from_latlon(lats, lons)
     elif -79.5 > lats[0]:
-        print "Need to use UPS coordinates."
-        print "Not tested if elevation values still accurate on UPS map."
+        print("Need to use UPS coordinates.")
+        print("Not tested if elevation values still accurate on UPS map.")
         xs, ys = pyproj.transform(_gpsProj, _southProj, lons, lats)
     else:
-        print "Need to use UPS coordinates."
-        print "Not tested if elevation values still accurate on UPS map."
+        print("Need to use UPS coordinates.")
+        print("Not tested if elevation values still accurate on UPS map.")
         xs, ys = pyproj.transform(_gpsProj, _northProj, lons, lats)
     return xs, ys
 
@@ -267,7 +267,7 @@ def showPath(filename, crop=[0, 0], style=None, offset=0):
         xs, ys, zs = loadData(filename, crop, style)
         zs -= offset
     except IOError:
-        print "Could not load data from file : "+filename
+        print("Could not load data from file : " + filename)
         return -1
     if len(xs) == 0:
         return -1
@@ -304,7 +304,7 @@ def showAboveGround(filename, crop=[0, 0], style=None, offset=0):
         xs, ys, zs = loadData(filename, crop, style)
         zs -= offset
     except IOError:
-        print "Could not load data from file : "+filename
+        print("Could not load data from file : " + filename)
         return -1
     if len(xs) == 0:
         return -1
@@ -312,6 +312,7 @@ def showAboveGround(filename, crop=[0, 0], style=None, offset=0):
     with h5py.File("maps.hdf5", "r") as f:
         grid = f["heightmap"][()]
         left, low, cellSize = f["meta"][()]
+        f.close()
     height, width = grid.shape
 
     xs = (xs-left)/cellSize
@@ -347,7 +348,7 @@ def showOnSurface(filename, crop=[0, 0], extend=10, style=None, offset=0):
         xs, ys, zs = loadData(filename, crop, style)
         zs -= offset
     except IOError:
-        print "Could not load data from file : "+filename
+        print("Could not load data from file : "+ filename)
         return -1
     if len(xs) == 0:
         return -1
@@ -355,6 +356,7 @@ def showOnSurface(filename, crop=[0, 0], extend=10, style=None, offset=0):
     with h5py.File("maps.hdf5", "r") as f:
         heightmap = f["heightmap"][()]
         left, low, cellSize = f["meta"][()]
+        f.close()
     height, width = heightmap.shape
 
     xcoords = (np.amin(xs)-left)/cellSize, (np.amax(xs)-left)/cellSize
@@ -405,11 +407,11 @@ def checkValid(filename, crop=[0, 0], style=None):
     style - string (optional) : One of 'gpx', 'dst' or 'xyz', indicating the
         format of 'filename'. By default, this is determined by the file
         extension and assumed to be 'gpx' if that is unclear."""
-    from modelling.parameters import env
+    from declutter.modelling.parameters import env
     try:
         xs, ys, zs = loadData(filename, crop, style)
     except IOError:
-        print "Could not load data from file : "+filename
+        print("Could not load data from file : " + filename)
         return -1
     if len(xs) == 0:
         return -1
@@ -417,6 +419,7 @@ def checkValid(filename, crop=[0, 0], style=None):
     with h5py.File("maps.hdf5", "r") as f:
         heightmap = f["heightmap"][()]
         left, low, cellSize = f["meta"][()]
+        f.close()
     height, width = heightmap.shape
     Y, X = np.indices(heightmap.shape)
 

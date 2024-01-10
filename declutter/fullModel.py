@@ -3,18 +3,18 @@ radar.py to display a radargram for data without storing the files
 for all points.
 This is useful where a single output is needed and the data for each
 point would be deleted immediately after.'''
-import path
+from declutter import path
 import numpy as np
 import os
-import radar
-from progress import progress
+from declutter import radar
+from declutter.progress import progress
 import multiprocessing as mp
-import pointData
-import viewshed
+from declutter import pointData
+from declutter import viewshed
 import matplotlib.pyplot as plt
-import align
-from modelling import parameters
-from modelling.defaults import default
+from declutter import align
+from declutter.modelling import parameters
+from declutter.modelling.defaults import default
 
 
 def processData(filename, crop=[0, 0], outName=None, style=None,
@@ -46,14 +46,14 @@ def processData(filename, crop=[0, 0], outName=None, style=None,
     The radargram output if successful, otherwise -1.
 
     """
-    print parameters.env
+    print(parameters.env)
     try:
-        xs, ys, zs = path.loadData(filename, crop, style)
+        xs, ys, zs = path.loadData(filename, crop, outName, style)
         xs -= offset
     except IOError:
-        print "Could not load data from file : "+filename
+        print("Could not load data from file : "+filename)
         if style is not None:
-            print "Is "+style+" the correct format?"
+            print("Is "+style+" the correct format?")
         return -1
     if len(xs) < 2:  # not enough points for a path
         return -1
@@ -64,7 +64,8 @@ def processData(filename, crop=[0, 0], outName=None, style=None,
 
 def _genPath(xs, ys, zs, name, adjusted=False, parallel=True):
     global pool
-    """Displays the radargram for a path.
+    """
+    Displays the radargram for a path.
 
     Parameters
     ----------
@@ -80,7 +81,9 @@ def _genPath(xs, ys, zs, name, adjusted=False, parallel=True):
     Returns
     -------
     returnData - 2D float array : The radargram output.
-    Returns -1 if unsuccessful."""
+    Returns -1 if unsuccessful.
+    """
+
     direction = path._makeDirections(xs, ys)
     n = len(xs)
 
@@ -106,10 +109,10 @@ def _genPath(xs, ys, zs, name, adjusted=False, parallel=True):
         else:  # non-parallel option
             for j in range(n):
                 i, ar = _worker(data[j])
-                returnData[i] = ars
+                returnData[i] = ar
     except IOError as e:  # likely couldn't find maps.hdf5 in current directory
         p.close()
-        print "\nError reading 'maps.hdf5' :\n" + e.message
+        print("\nError reading 'maps.hdf5' :\n" + e.message)
         return -1
     p.close()
 

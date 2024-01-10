@@ -9,7 +9,7 @@ import numpy as np
 import utm
 import pyproj
 import os
-from errors import RasterError
+from declutter.errors import RasterError
 
 
 def determineSystem(lat, lon):

@@ -4,7 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import h5py
 from declutter import radar
 from declutter import modelling
-from modelling import analysisFilters
+from declutter.modelling import analysisFilters
 import os
 '''Methods for identifying the cause of peaks in a radargram. Also a method
 for finding the incidence angle to the glacier wall at each point.'''
@@ -33,6 +33,7 @@ def flyBy(dirname, above=False, stepsize=3):
     with h5py.File("maps.hdf5", "r") as f:
         slope = f["slope"][()]
         aspect = f["aspect"][()]
+        f.close()
 
     height = grid.shape[0]
     files = os.listdir(dirname)
@@ -242,8 +243,8 @@ def markSurfaces(filename, start, end, alpha=0.2):
     xs = visCorner[0] + xs*cellSize
     ys = visCorner[1] + ys*cellSize
     m = intensity != 0
-    print "{0} points in this interval".format(np.sum(m))
-    print "Total intensity: {0}".format(np.sum(intensity))
+    print("{0} points in this interval".format(np.sum(m)))
+    print("Total intensity: {0}".format(np.sum(intensity)))
 
     fig = plt.figure(figsize=(10, 7))
     ax = fig.gca(projection='3d')
@@ -308,6 +309,7 @@ def loadMap():
     with h5py.File("maps.hdf5", "r") as f:
         grid = f["heightmap"][()]
         left, low, cellSize = f["meta"][:3]
+        f.close()
     return grid, left, low, cellSize
 
 
@@ -315,11 +317,11 @@ def loadPoint(filename):
     antDir = None
     with h5py.File(filename, "r") as f:
         if "visible" not in f:
-            print "Only possible for points which stored visible array."
+            print("Only possible for points which stored visible array.")
             return -1
         visible = f["visible"][()]
         if "corner" not in f:
-            print "Please recreate point files, format has changed."
+            print("Please recreate point files, format has changed.")
             return -1
         visCorner = f["corner"][()]
         distance = f["distance"][()]
@@ -329,6 +331,7 @@ def loadPoint(filename):
             theta = f["antennaTheta"][()]
             phi = f["antennaPhi"][()]
         pointx, pointy, pointz, antDir = f["meta"][:4]
+        f.close()
     if antDir is not None:
         antDir = (np.sin(antDir*np.pi/180.0), np.cos(antDir*np.pi/180.0))
     return (visible, visCorner, distance, angle, theta, phi, pointx,

@@ -7,3 +7,14 @@ docs/database/*.ovr
 docs/demoData/points/
 docs/maps.hdf5
 test/
+.ipynb_checkpoints
+.idea
+declutter/declutter.egg-info
+docs/database/map_1/
+docs/maps_all.hdf5
+docs/maps_just_height.hdf5
+docs/maps_just_slope.hdf5
+docs/maps_justaspect.hdf5
+docs/new_radargram.png
+notebook_for_debugg.ipynb
+docs/.ipynb_checkpoints

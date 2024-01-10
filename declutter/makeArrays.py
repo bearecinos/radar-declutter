@@ -1,17 +1,17 @@
 """Takes a raster which can be viewed in arcMap and produces a slope and aspect
 array. The original raster and two new arrays are all saved in numpy format in
-'maps.hdf5'."""
+'maps.h5'."""
 import arcpy
 import numpy as np
-from projection import *
+from declutter.projection import *
 import os
 import h5py
-from errors import RasterError
-from version import version
-
+from declutter.errors import RasterError
+from declutter.version import version
+from arcpy import RasterToNumPyArray
 
 __all__ = ["justAspect", "justSlope", "justHeightmap", "makeAll",
-           "rastersToNumpy"]
+           "RasterToNumPyArray"]
 _NODATA = np.nan
 
 
@@ -61,9 +61,9 @@ def resample(raster, cellSize, outDir=None):
         raise RasterError("Please use a cell size which is muliple of the "
                           "original: {0}".format(inSize))
     elif cellSize != inSize:
-        print "Resampling to a cell size of {0}".format(cellSize)
+        print("Resampling to a cell size of {0}".format(cellSize))
         arcpy.Resample_management(raster, out, str(cellSize), "CUBIC")
-        print "New name: "+out
+        print("New name: " + out)
         return arcpy.Raster(out)
     else:  # already correct size
         return raster
@@ -94,13 +94,13 @@ def coordinateSystem(raster, sampleLat, sampleLon, outDir=None):
     # need utm coordinates to relate to path data
     if -79.5 <= sampleLat and sampleLat <= 83.5:
         if "WGS_1984_UTM_Zone" not in e.spatialReference.name:
-            print "Projecting to UTM coordinate system."
-            print "New name: "+out
+            print("Projecting to UTM coordinate system.")
+            print("New name: "+ out)
             return project(raster, determineSystem(sampleLat, sampleLon), out)
     else:  # too close to poles for UTM zones
         if "UPS" not in e.spatialReference.name:
-            print "Projecting to UPS coordinate system."
-            print "New name: "+out
+            print("Projecting to UPS coordinate system.")
+            print("New name: "+ out)
             return project(raster, determineSystem(sampleLat, sampleLon), out)
     return raster
 
@@ -145,9 +145,9 @@ def justAspect(source, sampleLat, sampleLon, cellSize=None, outDir=None):
                                            outDir),
                                   sampleLat, sampleLon, outDir)
     except RasterError as e:
-        print "Error loading raster : "+e.message
+        print("Error loading raster : "+e.message)
         return -1
-    arcpy.env.snapRater = raster
+    arcpy.env.snapRaster = raster
     corner = raster.extent.lowerLeft
     cellSize = float(arcpy.GetRasterProperties_management(raster, "CELLSIZEX")
                      .getOutput(0))
@@ -164,8 +164,9 @@ def justAspect(source, sampleLat, sampleLon, cellSize=None, outDir=None):
                 f["meta"] = np.array([corner.X, corner.Y, cellSize])
             if "version" not in f:
                 f["version"] = version
+            f.close()
     except IOError as e:
-        print "Error appending to 'maps.hdf5' : "+e.message
+        print("Error appending to 'maps.h5' : "+e.message)
         return -1
     return 0
 
@@ -193,10 +194,10 @@ def justSlope(source, sampleLat, sampleLon, cellSize=None, outDir=None):
                                            outDir),
                                   sampleLat, sampleLon, outDir)
     except RasterError as e:
-        print "Error loading raster : "+e.message
+        print("Error loading raster : "+e.message)
         return -1
 
-    arcpy.env.snapRater = raster
+    arcpy.env.snapRaster = raster
     corner = raster.extent.lowerLeft
     cellSize = float(arcpy.GetRasterProperties_management(raster, "CELLSIZEX")
                      .getOutput(0))
@@ -212,8 +213,9 @@ def justSlope(source, sampleLat, sampleLon, cellSize=None, outDir=None):
                 f["meta"] = np.array([corner.X, corner.Y, cellSize])
             if "version" not in f:
                 f["version"] = version
+            f.close()
     except IOError as e:
-        print "Error appending to 'maps.hdf5' : "+e.message
+        print("Error appending to 'maps.h5' : "+e.message)
         return -1
     return 0
 
@@ -241,7 +243,7 @@ def justHeightmap(source, sampleLat, sampleLon, cellSize=None, outDir=None):
                                            outDir),
                                   sampleLat, sampleLon, outDir)
     except RasterError as e:
-        print "Error loading raster : "+e.message
+        print("Error loading raster : "+e.message)
         return -1
 
     corner = raster.extent.lowerLeft
@@ -260,8 +262,9 @@ def justHeightmap(source, sampleLat, sampleLon, cellSize=None, outDir=None):
                 f["meta"] = np.array([corner.X, corner.Y, cellSize])
             if "version" not in f:
                 f["version"] = version
+        f.close()
     except IOError as e:
-        print "Error appending to 'maps.hdf5' : "+e.message
+        print("Error appending to 'maps.h5' : "+e.message)
         return -1
     return 0
 
@@ -295,7 +298,7 @@ def makeAll(source, sampleLat, sampleLon, cellSize=None, outDir=None):
         raster = coordinateSystem(resample(loadRaster(source), cellSize,
                                            outDir),
                                   sampleLat, sampleLon, outDir)
-        arcpy.env.snapRater = raster
+        arcpy.env.snapRaster = raster
         corner = raster.extent.lowerLeft
         cellSize = float(arcpy.GetRasterProperties_management(
             raster, "CELLSIZEX").getOutput(0))
@@ -314,8 +317,9 @@ def makeAll(source, sampleLat, sampleLon, cellSize=None, outDir=None):
             f.create_dataset("slope", compression="gzip", data=slope)
             f["meta"] = np.array([corner.X, corner.Y, cellSize])
             f["version"] = version
+            f.close()
     except (RasterError, IOError) as e:
-        print "Error making arrays for 'maps.hdf5' : "+e.message
+        print("Error making arrays for 'maps.h5' : "+e.message)
         return -1
     return 0
 
@@ -340,7 +344,7 @@ def rastersToHdf(heightmap, aspect=None, slope=None):
     arcpy.env.workspace = os.getcwd()
     try:
         heightmap = loadRaster(heightmap)
-        arcpy.env.snapRater = heightmap
+        arcpy.env.snapRaster = heightmap
         corner = heightmap.extent.lowerLeft
         cellSize = float(arcpy.GetRasterProperties_management(
             heightmap, "CELLSIZEX").getOutput(0))
@@ -359,7 +363,7 @@ def rastersToHdf(heightmap, aspect=None, slope=None):
             slope = arcpy.RasterToNumpyArray(loadRaster(slope), corner,
                                              nodata_to_value=_NODATA)[::-1]
     except RasterError as e:
-        print "Error loading raster : " + e.message
+        print("Error loading raster : " + e.message)
         return -1
 
     # reverse order to put lower left corner at [0,0]
@@ -373,7 +377,8 @@ def rastersToHdf(heightmap, aspect=None, slope=None):
             f.create_dataset("slope", compression="gzip", data=slope)
             f["meta"] = np.array([corner.X, corner.Y, cellSize])
             f["version"] = version
+            f.close()
     except IOError:
-        print "Error: Could not write arrays to 'maps.hdf5'"
+        print("Error: Could not write arrays to 'maps.h5'")
         return -1
     return 0

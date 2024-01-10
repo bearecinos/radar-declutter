@@ -1,5 +1,5 @@
 # Get frequency/time step of radargram from models
-import parameters
+from declutter.modelling import parameters
 import numpy as np
 
 

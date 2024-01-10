@@ -30,6 +30,7 @@ def smooth(grid, threshold=0.95, sampleSteps=5, sampleArea=10):
                      0.0, float)
     ys, xs = np.indices((sampleArea, sampleArea))
     ys, xs = ys.reshape(-1), xs.reshape(-1)
+    results = []
     for x in range(0, grid.shape[1]-sampleArea, sampleSteps):
         for y in range(0, grid.shape[0]-sampleArea, sampleSteps):
             region = grid[y:y+sampleArea, x:x+sampleArea].reshape(-1)
@@ -39,7 +40,7 @@ def smooth(grid, threshold=0.95, sampleSteps=5, sampleArea=10):
             # least squares estimate
             residuals = np.linalg.lstsq(A, region)[1]
             # R^2 correlation coefficient
-            results[y/steps, x/steps] = 1.0 - residuals/np.sum(
+            results = 1.0 - residuals/np.sum(
                 region-np.mean(region)**2)
     return _scaleUp(grid, results, sampleSteps, sampleArea) > threshold
 
