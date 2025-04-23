@@ -119,7 +119,7 @@ def processData(filename, crop=[0, 0], outName=None, style=None, offset=0,
     0 if successful, otherwise -1.
     """
     try:
-        xs, ys, zs = loadData(filename, crop, style)
+        xs, ys, zs = loadData(filename, crop, outName, style)
         zs -= offset
     except IOError:
         print("Could not load data from file : "+filename)
