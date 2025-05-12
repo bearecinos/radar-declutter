@@ -10,5 +10,5 @@ This repo is a Python package to correct radargrams captured from helicopter‐b
 
 Here we jus need a link to the jupyter notebook
 
-### [Wiki]()
+### [Wiki](https://github.com/bearecinos/radar-declutter/wiki)
 
