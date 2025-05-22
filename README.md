@@ -18,3 +18,4 @@ See the [Wiki](https://github.com/bearecinos/radar-declutter/wiki) for the full 
 
 ## Citation
 
+[![DOI](https://zenodo.org/badge/741457808.svg)](https://doi.org/10.5281/zenodo.15488953)
